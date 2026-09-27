@@ -1,13 +1,18 @@
+import os
 from collections.abc import Iterator
 
-import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
+# Keep the app's own engine off the real database file; set before app modules load settings.
+os.environ["FITAI_DATABASE_URL"] = "sqlite://"
 
-from app.database import Base, get_db
-from app.main import app
+import pytest  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+from sqlalchemy import create_engine  # noqa: E402
+from sqlalchemy.orm import Session, sessionmaker  # noqa: E402
+from sqlalchemy.pool import StaticPool  # noqa: E402
+
+from app.database import get_db  # noqa: E402
+from app.main import app  # noqa: E402
+from app.migrate import migrate  # noqa: E402
 
 
 @pytest.fixture
@@ -15,7 +20,7 @@ def client() -> Iterator[TestClient]:
     engine = create_engine(
         "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
     )
-    Base.metadata.create_all(engine)
+    migrate(engine)
     TestSession = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
     def override_get_db() -> Iterator[Session]:
