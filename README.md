@@ -1,0 +1,71 @@
+# FitAI – Workout & Diet Recommendation System
+
+A web app that builds personalised workout and diet plans from a user's body measurements, goal, activity level and food allergies, and lets them track their meals against daily targets.
+
+- **Backend:** Python + FastAPI + SQLAlchemy (SQLite by default, any SQLAlchemy database via `FITAI_DATABASE_URL`)
+- **Web:** React + TypeScript + Vite, responsive so it works on phones too
+
+## Features
+
+- **Profile & BMI:** height, weight, age, sex, activity level and goal. BMI is calculated automatically and shown on a WHO category scale.
+- **Health metrics:** BMR (Mifflin-St Jeor), maintenance calories (TDEE), a goal-adjusted calorie target, protein/carb/fat targets, healthy weight range and water intake.
+- **Allergy-safe diet plan:** a daily breakfast/lunch/dinner/snack plan with portions scaled to the calorie target. Foods containing the user's allergens (dairy, eggs, peanuts, tree nuts, soy, gluten, fish, shellfish, sesame) are never suggested. The plan rotates day by day.
+- **Workout plan:** a weekly schedule based on goal and activity level. It uses low-impact exercises when BMI ≥ 30 or age ≥ 60 and beginner volume for sedentary or lightly active users.
+- **Meal tracking:** log foods from the database or custom entries, log a whole planned meal in one click, see calories and macros eaten vs. remaining, and get a warning when a logged food contains one of your allergens.
+- **Safety guardrails:** weight loss is blocked for underweight BMI, calories never go below a safe minimum, and the app suggests seeing a doctor at extreme BMIs.
+
+## How the recommendations work
+
+The engine is **rule-based**, so every number comes from a formula you can check. The logic lives in `backend/app/services/`:
+
+| File | What it does |
+| --- | --- |
+| `health.py` | BMI, BMR, TDEE, calorie target (−500 kcal to lose, +300 to gain), macro split, warnings |
+| `diet.py` | Filters foods by allergens, then builds each meal from protein, carb and vegetable roles and scales the servings |
+| `workout.py` | Picks the weekly split by goal and number of days, then chooses exercises (filtered for impact) and sets/reps by goal |
+
+The food and exercise data are in `backend/app/data/`. Nutrition values are approximate reference values.
+
+## Running locally
+
+### Backend
+
+```bash
+cd backend
+python3 -m venv .venv
+.venv/bin/pip install -r requirements-dev.txt
+.venv/bin/uvicorn app.main:app --reload --port 8000
+```
+
+Interactive API docs: http://localhost:8000/docs
+
+### Web app
+
+```bash
+cd web
+npm install
+npm run dev
+```
+
+Open http://localhost:5173. The dev server forwards `/api` requests to the backend on port 8000.
+
+### Tests & checks
+
+```bash
+cd backend && .venv/bin/pytest     # backend unit + API tests
+cd web && npm run lint && npm run build
+```
+
+## Configuration
+
+Environment variables (or a `backend/.env` file):
+
+| Variable | Default | Notes |
+| --- | --- | --- |
+| `FITAI_DATABASE_URL` | `sqlite:///./fitai.db` | e.g. `postgresql+psycopg://user:pass@host/db` (install the driver) |
+| `FITAI_JWT_SECRET` | dev placeholder | **Must be set to a long random value in production** |
+| `FITAI_CORS_ORIGINS` | `["http://localhost:5173"]` | JSON list |
+
+## Disclaimer
+
+FitAI gives general wellness guidance, not medical advice.
