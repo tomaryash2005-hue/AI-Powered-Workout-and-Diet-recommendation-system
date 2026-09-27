@@ -19,6 +19,20 @@ jobs:
     defaults:
       run:
         working-directory: backend
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: fitai
+          POSTGRES_PASSWORD: fitai
+          POSTGRES_DB: fitai_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U fitai"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -28,8 +42,12 @@ jobs:
           cache-dependency-path: backend/requirements*.txt
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
-      - name: Run tests (includes migration checks)
+      - name: Run tests on SQLite (includes migration checks)
         run: pytest
+      - name: Run tests on Postgres
+        run: pytest
+        env:
+          FITAI_TEST_POSTGRES_URL: postgresql://fitai:fitai@localhost:5432/fitai_test
 
   web:
     name: Web lint & build
@@ -50,3 +68,20 @@ jobs:
         run: npm run lint
       - name: Type-check & build
         run: npm run build
+
+  docker:
+    name: Docker image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build image
+        run: docker build -t fitai .
+      - name: Smoke test
+        run: |
+          docker run -d --name fitai -p 8000:8000 -e FITAI_JWT_SECRET="$(openssl rand -hex 32)" fitai
+          for i in $(seq 30); do curl -fs localhost:8000/api/health && break; sleep 1; done
+          curl -fs localhost:8000/api/health
+          curl -fs localhost:8000/diet | grep -q '<div id="root">'
+      - name: Container logs
+        if: failure()
+        run: docker logs fitai
