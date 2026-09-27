@@ -13,6 +13,11 @@ A web app that builds personalised workout and diet plans from a user's body mea
 - **Allergy-safe diet plan:** a daily breakfast/lunch/dinner/snack plan with portions scaled to the calorie target. Foods containing the user's allergens (dairy, eggs, peanuts, tree nuts, soy, gluten, fish, shellfish, sesame) are never suggested. The plan rotates day by day and draws on 115+ Indian and international foods.
 - **Swap a dish:** replace any dish in the plan with an alternative that fits the same spot, your diet and your allergies. Portions are rescaled to the same calories, and swaps are saved per day and can be undone.
 - **Workout plan:** a weekly schedule based on goal, activity level and equipment (bodyweight, home dumbbells or full gym). It uses low-impact exercises when BMI is in the obese range or age ≥ 60, and beginner volume for sedentary or lightly active users.
+- **AI meal logging (optional):**
+  - Type what you ate ("2 rotis, dal and some raita") or snap a photo of your plate. Claude identifies each food and portion.
+  - You review and adjust the servings, or remove items, before anything is saved.
+  - Foods matching the built-in list use FitAI's own nutrition data; anything else is marked "AI estimate".
+  - Allergen and diet warnings apply as usual. A backup check on food names, including Hindi names like *aloo*, *paneer* and *atta*, adds any flags the AI missed.
 - **Meal tracking:** log foods from the database or custom entries, log a whole planned meal in one click, see calories and macros eaten vs. remaining, and get a warning when a logged food contains one of your allergens or doesn't match your diet type.
 - **Workout logging:** mark a planned session done and record reps and weights for each set (prefilled from the plan), with a weekly "done" counter.
 - **Progress:**
@@ -108,6 +113,18 @@ The image runs in production mode, so it refuses to start without a real `FITAI_
 
 Each of these is off until you configure it. The app works fine without them.
 
+#### AI meal logging (Claude API)
+
+1. Create an API key at [console.anthropic.com](https://console.anthropic.com) and add a little credit.
+2. In Render → **fitai** → **Environment**, set `ANTHROPIC_API_KEY` to the key and save.
+
+A **Describe** tab then appears first in the food log's *Add food* panel.
+
+- **Model and fallback:** requests use Claude Opus 5 (`FITAI_AI_MODEL`). The API's server-side fallback is switched on, so the few requests Opus 5 declines are retried on another Claude model instead of failing.
+- **Daily cap:** each user can make `FITAI_AI_DAILY_LIMIT` requests per day (default 30).
+- **Cost:** it depends on your usage and current Anthropic pricing. Check the Usage page in the Anthropic Console after a few days. To spend less, lower the daily cap, or set `FITAI_AI_MODEL=claude-sonnet-5` for a cheaper model.
+- **Privacy:** photos are shrunk on the device before upload and are not stored by FitAI.
+
 #### Password-reset emails (Resend)
 
 1. Create a free account at [resend.com](https://resend.com), verify a domain you own, and create an API key.
@@ -173,6 +190,8 @@ Environment variables (or a `backend/.env` file):
 | `FITAI_RESEND_API_KEY` / `FITAI_EMAIL_FROM` | unset | Password-reset emails. In development, emails are printed to the server log instead. |
 | `FITAI_VAPID_PRIVATE_KEY` / `FITAI_VAPID_SUBJECT` | unset | Push reminders (`python -m app.vapid_keys`) |
 | `FITAI_CRON_SECRET` | unset | Shared secret for the reminders scheduler |
+| `ANTHROPIC_API_KEY` (or `FITAI_ANTHROPIC_API_KEY`) | unset | Turns on AI meal logging |
+| `FITAI_AI_MODEL` / `FITAI_AI_DAILY_LIMIT` | `claude-opus-5` / `30` | Model for AI meal logging, and requests per user per day |
 | `FITAI_CORS_ORIGINS` | `["http://localhost:5173"]` | JSON list |
 | `FITAI_USDA_API_KEY` | unset | Free api.data.gov key (see the FoodData Central API guide) — enables USDA food search |
 

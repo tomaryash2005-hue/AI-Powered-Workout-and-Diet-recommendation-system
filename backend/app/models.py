@@ -159,6 +159,16 @@ class PushSubscription(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
 
+class AiUsage(Base):
+    """How many AI requests a user made on a UTC day (for the daily cap)."""
+
+    __tablename__ = "ai_usage"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+    count: Mapped[int] = mapped_column(Integer, default=0)
+
+
 class ReminderDelivery(Base):
     """Marks a reminder as handled for a user's local day, so each fires at most once."""
 

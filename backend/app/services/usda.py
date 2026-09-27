@@ -29,21 +29,25 @@ NUTRIENT_KEYS: dict[str, tuple[str, ...]] = {
     "fat_g": ("204", "1004"),
 }
 
+# English plus common Hindi/Indian names, so "aloo", "paneer" or "atta" are recognised too.
 KEYWORDS: dict[str, str] = {
-    "dairy": r"(?<!coconut )(?<!almond )(?<!soy )(?<!oat )(?<!rice )milk|cheese|(?<!peanut )(?<!cocoa )(?<!nut )(?<!almond )butter\b|cream|whey|casein|"
-    r"yogh?urt|ghee|paneer|lactose",
-    "eggs": r"\beggs?\b|albumin|mayonnaise",
-    "peanuts": r"peanut",
-    "tree_nuts": r"almond|cashew|walnut|pecan|pistachio|hazelnut|macadamia|brazil nut",
+    "dairy": r"(?<!coconut )(?<!almond )(?<!soy )(?<!oat )(?<!rice )milk|cheese|"
+    r"(?<!peanut )(?<!cocoa )(?<!nut )(?<!almond )butter\b|cream|whey|casein|yogh?urt|ghee|paneer|lactose|"
+    r"\bdahi\b|\bcurd|raita|lassi|malai|khoa|khoya|makhan|chaas|kheer|\brabri",
+    "eggs": r"\beggs?\b|albumin|mayonnaise|omelette|\banda\b|\bande\b",
+    "peanuts": r"peanut|groundnut|moongphali|mungfali",
+    "tree_nuts": r"almond|cashew|walnut|pecan|pistachio|hazelnut|macadamia|brazil nut|\bkaju|badam|akhrot|pista\b",
     "soy": r"\bsoy|soya|tofu|edamame|tempeh",
-    "gluten": r"wheat|barley|\brye\b|gluten|semolina|\bmalt|spelt|couscous|seitan",
-    "fish": r"\bfish|salmon|tuna|\bcod\b|tilapia|sardine|anchov|mackerel|trout|haddock|pollock",
-    "shellfish": r"shrimp|prawn|\bcrab|lobster|\bclams?\b|mussel|oyster|scallop|crayfish",
-    "sesame": r"sesame|tahini",
+    "gluten": r"wheat|barley|\brye\b|gluten|semolina|\bmalt|spelt|couscous|seitan|\batta\b|maida|"
+    r"\bsuji\b|sooji|\brava\b|\bnaan|paratha|\bpuri\b|poori|chapati|\broti|bread|pasta|noodle|samosa|kachori",
+    "fish": r"\bfish|salmon|tuna|\bcod\b|tilapia|sardine|anchov|mackerel|trout|haddock|pollock|machli|machhi",
+    "shellfish": r"shrimp|prawn|\bcrab|lobster|\bclams?\b|mussel|oyster|scallop|crayfish|jhinga|jheenga",
+    "sesame": r"sesame|tahini|\btil\b|gingelly",
     "meat": r"chicken|beef|pork|\blamb\b|mutton|turkey|bacon|\bham\b|sausage|salami|pepperoni|"
-    r"veal|venison|\bduck\b|gelatin|lard",
+    r"veal|venison|\bduck\b|gelatin|lard|murgh|gosht|keema|kheema",
     "jain_restricted": r"onion|garlic|potato|carrot|\bbeets?\b|beetroot|radish|ginger|turnip|\byams?\b|"
-    r"shallot|\bleeks?\b|scallion|mushroom|honey",
+    r"shallot|\bleeks?\b|scallion|mushroom|honey|\baa?l(?:oo?|u)\b|\baa?loo|pyaa?z|lehsun|lahsun|adrak|gajar|mooli|"
+    r"shakarkandi|chukandar|\bkanda|batata|arbi|zimikand",
 }
 
 DIET_FLAGS = ("meat", "jain_restricted")

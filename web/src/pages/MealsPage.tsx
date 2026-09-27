@@ -1,17 +1,24 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { api, type Food, type MealLog, type MealType } from '../api'
+import AiMealLogger from '../components/AiMealLogger'
 import DateNav from '../components/DateNav'
 import { AlertIcon, PlusIcon, TrashIcon } from '../components/Icons'
 import { MacroBar, Ring } from '../components/Progress'
 import { defaultMealType, fmt, MEAL_LABELS, MEAL_TYPES, today, useAsync } from '../utils'
 
-type Mode = 'search' | 'custom'
+type Mode = 'ai' | 'search' | 'custom'
+
+const MODE_LABELS: Record<Mode, string> = { ai: 'Describe', search: 'Search', custom: 'Custom' }
 
 const EMPTY_CUSTOM = { name: '', calories: '', protein_g: '', carbs_g: '', fat_g: '' }
 
 function AddFood({ day, onAdded }: { day: string; onAdded: (m: MealLog) => void }) {
   const [mealType, setMealType] = useState<MealType>(defaultMealType())
-  const [mode, setMode] = useState<Mode>('search')
+  const { data: options } = useAsync(api.options)
+  const [chosenMode, setMode] = useState<Mode | null>(null)
+  // Default to AI logging when the server has it turned on.
+  const mode: Mode = chosenMode ?? (options?.ai_logging ? 'ai' : 'search')
+  const modes: Mode[] = options?.ai_logging ? ['ai', 'search', 'custom'] : ['search', 'custom']
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<Food[]>([])
   const [selected, setSelected] = useState<Food | null>(null)
@@ -63,25 +70,23 @@ function AddFood({ day, onAdded }: { day: string; onAdded: (m: MealLog) => void 
     <form className="card stack" onSubmit={submit}>
       <div className="spread">
         <h2>Add food</h2>
-        <div className="tabs" style={{ margin: 0, minWidth: 200 }} role="tablist">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={mode === 'search'}
-            className={mode === 'search' ? 'active' : ''}
-            onClick={() => setMode('search')}
-          >
-            Search
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={mode === 'custom'}
-            className={mode === 'custom' ? 'active' : ''}
-            onClick={() => setMode('custom')}
-          >
-            Custom
-          </button>
+        <div
+          className="tabs"
+          style={{ margin: 0, minWidth: modes.length * 96, gridTemplateColumns: `repeat(${modes.length}, 1fr)` }}
+          role="tablist"
+        >
+          {modes.map((m) => (
+            <button
+              key={m}
+              type="button"
+              role="tab"
+              aria-selected={mode === m}
+              className={mode === m ? 'active' : ''}
+              onClick={() => setMode(m)}
+            >
+              {MODE_LABELS[m]}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -94,7 +99,9 @@ function AddFood({ day, onAdded }: { day: string; onAdded: (m: MealLog) => void 
         ))}
       </div>
 
-      {mode === 'search' ? (
+      {mode === 'ai' ? (
+        <AiMealLogger day={day} mealType={mealType} onAdded={onAdded} />
+      ) : mode === 'search' ? (
         <>
           <input
             className="input"
@@ -222,10 +229,12 @@ function AddFood({ day, onAdded }: { day: string; onAdded: (m: MealLog) => void 
       )}
 
       {error && <div className="alert alert-danger">{error}</div>}
-      <button className="btn btn-primary" disabled={busy || (mode === 'search' && !selected)}>
-        <PlusIcon />
-        Add to {MEAL_LABELS[mealType].toLowerCase()}
-      </button>
+      {mode !== 'ai' && (
+        <button className="btn btn-primary" disabled={busy || (mode === 'search' && !selected)}>
+          <PlusIcon />
+          Add to {MEAL_LABELS[mealType].toLowerCase()}
+        </button>
+      )}
     </form>
   )
 }

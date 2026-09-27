@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.database import get_db
 from app.models import (
+    AiUsage,
     MealLog,
     PasswordResetToken,
     PlanSwap,
@@ -193,7 +194,7 @@ def delete_account(
     # Delete explicitly rather than relying on ON DELETE CASCADE, which SQLite doesn't enforce by default.
     db.execute(delete(WorkoutSet).where(WorkoutSet.workout_id.in_(workout_ids)))
     for model in (
-        WorkoutLog, MealLog, WeightLog, PlanSwap, PasswordResetToken,
+        WorkoutLog, MealLog, WeightLog, PlanSwap, PasswordResetToken, AiUsage,
         PushSubscription, ReminderDelivery, ReminderSettings, Profile,
     ):
         db.execute(delete(model).where(model.user_id == uid))
