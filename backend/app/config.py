@@ -16,7 +16,8 @@ def normalize_database_url(url: str) -> str:
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_prefix="FITAI_")
+    # Blank values (e.g. optional fields left empty in a hosting dashboard) count as unset.
+    model_config = SettingsConfigDict(env_file=".env", env_prefix="FITAI_", env_ignore_empty=True)
 
     environment: Literal["development", "production"] = "development"
     # DATABASE_URL is the name most hosting platforms use for an attached database.
@@ -31,6 +32,18 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
     # Built web app to serve; defaults to ../web/dist when that exists.
     static_dir: Path | None = None
+    # Public address of the app, used in password-reset links. Render sets RENDER_EXTERNAL_URL.
+    public_url: str | None = Field(
+        default=None, validation_alias=AliasChoices("FITAI_PUBLIC_URL", "RENDER_EXTERNAL_URL")
+    )
+    # Email (password reset) via Resend. Without a key, dev mode prints emails to the console.
+    resend_api_key: str | None = None
+    email_from: str = "FitAI <onboarding@resend.dev>"
+    # Web push reminders. Generate a key with: python -m app.vapid_keys
+    vapid_private_key: str | None = None
+    vapid_subject: str = "mailto:admin@example.com"
+    # Shared secret the scheduler sends to trigger reminders.
+    cron_secret: str | None = None
 
     @field_validator("database_url")
     @classmethod

@@ -71,12 +71,20 @@ export default function ProgressPage() {
   const end = today()
   const { data, loading, error, reload } = useAsync(
     useCallback(
-      () => Promise.all([api.getProfile(), api.weights(end, days), api.history(end, days)]),
+      () =>
+        Promise.all([
+          api.getProfile(),
+          api.weights(end, days),
+          api.history(end, days),
+          api.workouts(end, days),
+          api.strength(end, days),
+        ]),
       [end, days],
     ),
     { keepPrevious: true },
   )
   const [actionError, setActionError] = useState<string | null>(null)
+  const [exercise, setExercise] = useState<string | null>(null)
 
   const remove = async (id: number) => {
     setActionError(null)
@@ -120,7 +128,8 @@ export default function ProgressPage() {
     )
   }
 
-  const [profile, weights, history] = data
+  const [profile, weights, history, workouts, strength] = data
+  const series = strength.find((s) => s.exercise === exercise) ?? strength[0]
   const goal = profile.metrics.effective_goal
   const latest = weights.at(-1)
   const change = weights.length > 1 ? latest!.weight_kg - weights[0].weight_kg : null
@@ -156,6 +165,16 @@ export default function ProgressPage() {
             {avg !== null && <small>kcal</small>}
           </div>
           <p className="stat-sub">Target {fmt(history.target_calories)} kcal</p>
+        </div>
+        <div className="card">
+          <span className="stat-label">Workouts logged</span>
+          <div className="stat-value">
+            {workouts.length}
+            <small>in {days} days</small>
+          </div>
+          <p className="stat-sub">
+            {workouts.length ? `Last: ${shortDate(workouts[workouts.length - 1].date)}` : 'Log one from the Workout page'}
+          </p>
         </div>
         <div className="card">
           <span className="stat-label">Days with food logged</span>
@@ -212,6 +231,43 @@ export default function ProgressPage() {
           />
         </section>
       </div>
+
+      <section className="card stack">
+        <div className="spread" style={{ flexWrap: 'wrap', alignItems: 'flex-start' }}>
+          <div>
+            <h2>Strength (kg)</h2>
+            <p className="small muted">Heaviest set per workout, for exercises you log with a weight.</p>
+          </div>
+          {strength.length > 1 && (
+            <select
+              className="input"
+              style={{ width: 'auto' }}
+              aria-label="Exercise"
+              value={series?.exercise}
+              onChange={(e) => setExercise(e.target.value)}
+            >
+              {strength.map((s) => (
+                <option key={s.exercise}>{s.exercise}</option>
+              ))}
+            </select>
+          )}
+        </div>
+        {series ? (
+          <>
+            <LineChart
+              label={`${series.exercise} heaviest set over time`}
+              points={series.points.map((p) => ({ date: p.date, value: p.best_weight_kg }))}
+              format={(v) => `${v} kg`}
+            />
+            <DataTable
+              columns={['Date', `${series.exercise} (kg)`]}
+              rows={series.points.map((p) => [shortDate(p.date), p.best_weight_kg])}
+            />
+          </>
+        ) : (
+          <div className="chart-empty">Log a workout with weights to see your strength progress.</div>
+        )}
+      </section>
 
       {weights.length > 0 && (
         <section className="card">

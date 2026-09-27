@@ -8,7 +8,7 @@ from alembic.script import ScriptDirectory
 from sqlalchemy import Engine, inspect, text
 
 from app.database import Base
-from app.migrate import OutdatedDatabaseError, alembic_config, migrate
+from app.migrate import BASELINE_REVISION, OutdatedDatabaseError, alembic_config, migrate
 from tests.conftest import make_test_engine
 
 
@@ -52,7 +52,10 @@ def test_downgrade_to_base_and_back(engine: Engine) -> None:
 
 
 def test_database_created_before_migrations_is_adopted(engine: Engine) -> None:
-    Base.metadata.create_all(engine)
+    # Databases from before migrations existed have the baseline schema but no version table.
+    with engine.begin() as conn:
+        command.upgrade(alembic_config(conn), BASELINE_REVISION)
+        conn.execute(text("DROP TABLE alembic_version"))
     with engine.begin() as conn:
         conn.execute(
             text("INSERT INTO users (email, name, hashed_password, created_at) VALUES ('a@b.c', 'A', 'x', '2026-01-01')")

@@ -14,7 +14,15 @@ A web app that builds personalised workout and diet plans from a user's body mea
 - **Swap a dish:** replace any dish in the plan with an alternative that fits the same spot, your diet and your allergies. Portions are rescaled to the same calories, and swaps are saved per day and can be undone.
 - **Workout plan:** a weekly schedule based on goal, activity level and equipment (bodyweight, home dumbbells or full gym). It uses low-impact exercises when BMI is in the obese range or age ≥ 60, and beginner volume for sedentary or lightly active users.
 - **Meal tracking:** log foods from the database or custom entries, log a whole planned meal in one click, see calories and macros eaten vs. remaining, and get a warning when a logged food contains one of your allergens or doesn't match your diet type.
-- **Progress:** log weigh-ins (the latest one updates your profile weight and plans), and see a weight chart against your healthy range plus daily calories against your target over 7, 30 or 90 days.
+- **Workout logging:** mark a planned session done and record reps and weights for each set (prefilled from the plan), with a weekly "done" counter.
+- **Progress:**
+  - Log weigh-ins; the latest one updates your profile weight and plans.
+  - See charts over 7, 30 or 90 days: weight against your healthy range, daily calories against your target, and strength (heaviest set per exercise).
+- **Reminders:** push notifications to log meals, a weekly weigh-in, and workouts on training days. Each reminder is skipped if you've already done it.
+- **Account:**
+  - Change your password, which signs out other devices.
+  - Reset a forgotten password by email.
+  - Export all your data as JSON, or permanently delete your account.
 - **USDA food search (optional):** set `FITAI_USDA_API_KEY` to also search the USDA FoodData Central database when logging. Their allergens and meat content are estimated from names and ingredient lists, so USDA foods are used for logging only, never for generated plans.
 - **Installable app:** add FitAI to your phone's home screen from the browser (Share → Add to Home Screen on iOS, Install app on Android). The app shell works offline; your data always comes fresh from the server and is never cached.
 - **Safety guardrails:** weight loss is blocked for underweight BMI, calories never go below a safe minimum, and the app suggests seeing a doctor at extreme BMIs.
@@ -96,6 +104,61 @@ docker run -p 8000:8000 \
 
 The image runs in production mode, so it refuses to start without a real `FITAI_JWT_SECRET`. Without `DATABASE_URL` it falls back to SQLite inside the container, which is lost when the container is replaced. Use Postgres for anything real. The container listens on `$PORT` (default 8000), as Railway, Fly.io and similar platforms expect.
 
+### Optional add-ons after deploying
+
+Each of these is off until you configure it. The app works fine without them.
+
+#### Password-reset emails (Resend)
+
+1. Create a free account at [resend.com](https://resend.com), verify a domain you own, and create an API key.
+2. In Render → **fitai** → **Environment**, set:
+   - `FITAI_RESEND_API_KEY` to the key.
+   - `FITAI_EMAIL_FROM` to a sender on that domain, e.g. `FitAI <noreply@yourdomain.com>`.
+3. Save. **Forgot password?** now appears on the sign-in page.
+
+Links point at your Render address automatically (`RENDER_EXTERNAL_URL`). Set `FITAI_PUBLIC_URL` if you use a custom domain.
+
+#### Reminders (push notifications)
+
+1. Generate a key:
+
+   ```bash
+   cd backend && .venv/bin/python -m app.vapid_keys
+   ```
+
+2. In Render → **fitai** → **Environment**, set:
+   - `FITAI_VAPID_PRIVATE_KEY` to the printed value.
+   - `FITAI_VAPID_SUBJECT` to `mailto:you@example.com`.
+3. Copy the value of `FITAI_CRON_SECRET` from the same page. Render generated it.
+4. In GitHub → repo **Settings → Secrets and variables → Actions**, add two secrets:
+   - `FITAI_APP_URL`: your `https://….onrender.com` address.
+   - `FITAI_CRON_SECRET`: the value from step 3.
+5. The **Reminders** workflow then calls the app every 15 minutes to send whatever is due. Each user turns reminders on in **Settings** (gear icon).
+
+Some limits to know about:
+- On iPhone, notifications only work after FitAI is added to the Home Screen.
+- GitHub may run scheduled workflows a few minutes late, so reminders can arrive up to about 15–20 minutes after their set time. A reminder is still sent up to 3 hours late, but never twice.
+- The scheduled calls keep a free Render service awake, which uses up its monthly free hours.
+
+#### Daily encrypted backups
+
+1. In Render → **fitai-db** → **Connections**, copy the **External Database URL**.
+2. Make a long random passphrase, e.g. `openssl rand -base64 32`, and **store it somewhere safe**. Without it, backups can't be restored.
+3. In GitHub → **Settings → Secrets and variables → Actions**, add two secrets:
+   - `FITAI_BACKUP_DATABASE_URL`: the URL from step 1.
+   - `FITAI_BACKUP_PASSPHRASE`: the passphrase from step 2.
+4. The **Database backup** workflow then runs daily (and on demand from the Actions tab). It saves an AES-256-encrypted, compressed dump as a workflow artifact, kept for 30 days.
+
+To restore, download the artifact and unzip it, then run:
+
+```bash
+export PASSPHRASE='your passphrase'
+openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -pass env:PASSPHRASE -in fitai-YYYYMMDD-HHMM.sql.gz.enc \
+  | gunzip | psql "postgres://user:pass@host:5432/new_database"
+```
+
+Restore into an empty database running the same or a newer Postgres version. On an older version you may see a harmless `unrecognized configuration parameter` error at the start.
+
 ## Configuration
 
 Environment variables (or a `backend/.env` file):
@@ -106,6 +169,10 @@ Environment variables (or a `backend/.env` file):
 | `FITAI_JWT_SECRET` | dev placeholder | **Required in production:** a random value of at least 32 characters |
 | `FITAI_ENVIRONMENT` | `development` | `production` (set in the Docker image) enforces a real secret |
 | `FITAI_STATIC_DIR` | `web/dist` if built | Folder with the built web app for the backend to serve |
+| `FITAI_PUBLIC_URL` | `RENDER_EXTERNAL_URL` | Public address used in password-reset links |
+| `FITAI_RESEND_API_KEY` / `FITAI_EMAIL_FROM` | unset | Password-reset emails. In development, emails are printed to the server log instead. |
+| `FITAI_VAPID_PRIVATE_KEY` / `FITAI_VAPID_SUBJECT` | unset | Push reminders (`python -m app.vapid_keys`) |
+| `FITAI_CRON_SECRET` | unset | Shared secret for the reminders scheduler |
 | `FITAI_CORS_ORIGINS` | `["http://localhost:5173"]` | JSON list |
 | `FITAI_USDA_API_KEY` | unset | Free api.data.gov key (see the FoodData Central API guide) — enables USDA food search |
 
@@ -131,6 +198,8 @@ GitHub Actions (`.github/workflows/ci.yml`) runs on every pull request and every
 - the backend tests on SQLite and on Postgres, including the migration checks
 - the web app's lint, type check and build
 - a Docker image build with a smoke test
+
+Two more workflows run on a schedule once their secrets are set: **Reminders** (every 15 minutes) and **Database backup** (daily). Both skip quietly until configured.
 
 ## Disclaimer
 

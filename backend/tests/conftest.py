@@ -76,3 +76,13 @@ def auth_client(client: TestClient) -> TestClient:
 def profiled_client(auth_client: TestClient) -> TestClient:
     auth_client.put("/api/profile", json=PROFILE)
     return auth_client
+
+
+@pytest.fixture
+def db_session() -> Iterator[Session]:
+    engine = make_test_engine()
+    migrate(engine)
+    session = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)()
+    yield session
+    session.close()
+    engine.dispose()
