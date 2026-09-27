@@ -2,6 +2,10 @@ export type Sex = 'male' | 'female' | 'other'
 export type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'active' | 'very_active'
 export type Goal = 'lose' | 'maintain' | 'gain'
 export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack'
+export type DietType = 'non_vegetarian' | 'pescatarian' | 'eggetarian' | 'vegetarian' | 'vegan'
+export type BmiStandard = 'who' | 'asian'
+export type Equipment = 'none' | 'dumbbells' | 'gym'
+export type BmiCategory = 'underweight' | 'normal' | 'overweight' | 'obese'
 
 export interface User {
   id: number
@@ -23,11 +27,16 @@ export interface ProfileInput {
   activity_level: ActivityLevel
   goal: Goal
   allergies: string[]
+  diet_type: DietType
+  bmi_standard: BmiStandard
+  equipment: Equipment
 }
 
 export interface Metrics {
   bmi: number
-  bmi_category: 'underweight' | 'normal' | 'overweight' | 'obese'
+  bmi_category: BmiCategory
+  bmi_standard: BmiStandard
+  bmi_cutoffs: [number, number, number]
   bmr: number
   tdee: number
   effective_goal: Goal
@@ -44,9 +53,16 @@ export interface Profile extends ProfileInput {
   metrics: Metrics
 }
 
-export interface Allergen {
+export interface Option {
   key: string
   label: string
+}
+
+export interface Options {
+  allergens: Option[]
+  diet_types: Option[]
+  equipment: Option[]
+  usda_search: boolean
 }
 
 export interface Nutrition {
@@ -57,6 +73,9 @@ export interface Nutrition {
 }
 
 export interface PlannedItem extends Nutrition {
+  slot: number
+  target_calories: number
+  swapped: boolean
   food_id: string
   name: string
   serving: string
@@ -74,7 +93,9 @@ export interface DietPlan extends Nutrition {
   date: string
   target_calories: number
   meals: PlannedMeal[]
+  diet_type: DietType
   excluded_allergens: string[]
+  has_swaps: boolean
   tips: string[]
 }
 
@@ -98,6 +119,7 @@ export interface WorkoutPlan {
   goal: Goal
   level: string
   low_impact: boolean
+  equipment: Equipment
   days_per_week: number
   week: WorkoutDay[]
   notes: string[]
@@ -111,6 +133,8 @@ export interface Food extends Nutrition {
   meal_types: MealType[]
   allergens: string[]
   conflicts_with_allergies: string[]
+  fits_diet: boolean
+  source: 'builtin' | 'usda'
 }
 
 export interface MealLog extends Nutrition {
@@ -141,6 +165,21 @@ export interface DailySummary {
   carbs_g: Progress
   fat_g: Progress
   meals: MealLog[]
+}
+
+export interface DayTotals extends Nutrition {
+  date: string
+}
+
+export interface History {
+  target_calories: number
+  days: DayTotals[]
+}
+
+export interface WeightEntry {
+  id: number
+  date: string
+  weight_kg: number
 }
 
 const TOKEN_KEY = 'fitai_token'
@@ -224,17 +263,39 @@ export const api = {
   me: () => request<User>('GET', '/api/auth/me'),
 
   getProfile: () => request<Profile>('GET', '/api/profile'),
-  saveProfile: (p: ProfileInput) => request<Profile>('PUT', '/api/profile', p),
+  saveProfile: (p: ProfileInput, asOf: string) =>
+    request<Profile>('PUT', '/api/profile', { ...p, as_of: asOf }),
 
-  allergens: () => request<Allergen[]>('GET', '/api/foods/allergens'),
+  options: () => request<Options>('GET', '/api/foods/options'),
   searchFoods: (q: string, mealType?: MealType) =>
     request<Food[]>('GET', `/api/foods${qs({ q, meal_type: mealType })}`),
 
   dietPlan: (day: string) => request<DietPlan>('GET', `/api/recommendations/diet${qs({ day })}`),
+  alternatives: (day: string, mealType: MealType, slot: number) =>
+    request<PlannedItem[]>(
+      'GET',
+      `/api/recommendations/diet/alternatives${qs({ day, meal_type: mealType, slot: String(slot) })}`,
+    ),
+  swapDish: (day: string, mealType: MealType, slot: number, foodId: string) =>
+    request<DietPlan>('PUT', '/api/recommendations/diet/swap', {
+      day,
+      meal_type: mealType,
+      slot,
+      food_id: foodId,
+    }),
+  resetSwaps: (day: string) => request<DietPlan>('DELETE', `/api/recommendations/diet/swaps${qs({ day })}`),
   workoutPlan: (day: string) =>
     request<WorkoutPlan>('GET', `/api/recommendations/workout${qs({ day })}`),
 
   logMeal: (meal: MealLogInput) => request<MealLog>('POST', '/api/meals', meal),
   deleteMeal: (id: number) => request<void>('DELETE', `/api/meals/${id}`),
   summary: (day: string) => request<DailySummary>('GET', `/api/meals/summary${qs({ day })}`),
+  history: (end: string, days: number) =>
+    request<History>('GET', `/api/meals/history${qs({ end, days: String(days) })}`),
+
+  weights: (end: string, days: number) =>
+    request<WeightEntry[]>('GET', `/api/weight${qs({ end, days: String(days) })}`),
+  logWeight: (date: string, weightKg: number) =>
+    request<WeightEntry>('PUT', '/api/weight', { date, weight_kg: weightKg }),
+  deleteWeight: (id: number) => request<void>('DELETE', `/api/weight/${id}`),
 }

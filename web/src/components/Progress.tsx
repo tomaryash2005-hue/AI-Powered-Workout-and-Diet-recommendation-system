@@ -1,5 +1,5 @@
-import type { Metrics, Progress } from '../api'
-import { bmiCategory, fmt } from '../utils'
+import type { BmiCategory, Metrics, Progress } from '../api'
+import { fmt } from '../utils'
 import { AlertIcon } from './Icons'
 
 export function Ring({ progress }: { progress: Progress }) {
@@ -66,37 +66,42 @@ export function MacroBar({
 const BMI_MIN = 15
 const BMI_MAX = 40
 
-export function BmiScale({ bmi }: { bmi: number }) {
-  const pos = ((Math.min(Math.max(bmi, BMI_MIN), BMI_MAX) - BMI_MIN) / (BMI_MAX - BMI_MIN)) * 100
+export function BmiScale({ bmi, cutoffs }: { bmi: number; cutoffs: [number, number, number] }) {
+  const pct = (v: number) => ((Math.min(Math.max(v, BMI_MIN), BMI_MAX) - BMI_MIN) / (BMI_MAX - BMI_MIN)) * 100
+  const bounds = [BMI_MIN, ...cutoffs, BMI_MAX]
+  const columns = bounds
+    .slice(1)
+    .map((b, i) => `${b - bounds[i]}fr`)
+    .join(' ')
   return (
     <div className="bmi-scale" aria-hidden="true">
-      <div className="bmi-track">
+      <div className="bmi-track" style={{ gridTemplateColumns: columns }}>
         <div />
         <div />
         <div />
         <div />
       </div>
-      <div className="bmi-marker" style={{ left: `${pos}%` }} />
+      <div className="bmi-marker" style={{ left: `${pct(bmi)}%` }} />
       <div className="bmi-ticks">
-        <span />
-        <span>18.5</span>
-        <span>25</span>
-        <span>30</span>
+        {cutoffs.map((c) => (
+          <span key={c} style={{ left: `${pct(c)}%` }}>
+            {c}
+          </span>
+        ))}
       </div>
     </div>
   )
 }
 
-const CATEGORY_TAG: Record<ReturnType<typeof bmiCategory>, string> = {
+const CATEGORY_TAG: Record<BmiCategory, string> = {
   underweight: 'tag-warn',
   normal: 'tag-accent',
   overweight: 'tag-warn',
   obese: 'tag-danger',
 }
 
-export function BmiTag({ bmi }: { bmi: number }) {
-  const cat = bmiCategory(bmi)
-  return <span className={`tag ${CATEGORY_TAG[cat]}`}>{cat[0].toUpperCase() + cat.slice(1)}</span>
+export function BmiTag({ category }: { category: BmiCategory }) {
+  return <span className={`tag ${CATEGORY_TAG[category]}`}>{category[0].toUpperCase() + category.slice(1)}</span>
 }
 
 export function Warnings({ metrics }: { metrics: Metrics }) {

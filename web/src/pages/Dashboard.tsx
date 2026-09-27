@@ -39,10 +39,10 @@ export default function Dashboard() {
         <div className="card">
           <div className="spread">
             <span className="stat-label">BMI</span>
-            <BmiTag bmi={m.bmi} />
+            <BmiTag category={m.bmi_category} />
           </div>
           <div className="stat-value">{m.bmi}</div>
-          <BmiScale bmi={m.bmi} />
+          <BmiScale bmi={m.bmi} cutoffs={m.bmi_cutoffs} />
         </div>
         <div className="card">
           <span className="stat-label">Daily calorie target</span>

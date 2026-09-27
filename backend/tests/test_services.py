@@ -3,8 +3,9 @@ from datetime import date, timedelta
 
 import pytest
 
-from app.data.foods import FOODS_BY_ID
-from app.services.diet import build_diet_plan
+from app.data.exercises import EXERCISES
+from app.data.foods import DIET_TYPES, FOODS, FOODS_BY_ID, fits_diet
+from app.services.diet import build_diet_plan, swap_alternatives
 from app.services.health import bmi_category, calculate_bmi, compute_metrics
 from app.services.workout import build_workout_plan
 
@@ -18,6 +19,9 @@ class P:
     activity_level: str = "moderate"
     goal: str = "maintain"
     allergies: list[str] = field(default_factory=list)
+    diet_type: str = "non_vegetarian"
+    bmi_standard: str = "who"
+    equipment: str = "none"
 
 
 @pytest.mark.parametrize(
@@ -111,3 +115,94 @@ def test_beginner_volume() -> None:
     assert plan.level == "beginner"
     strength = [e for d in plan.week if d.focus in ("full_body", "upper", "lower") for e in d.exercises]
     assert strength and all(e.sets == 3 for e in strength)
+
+
+def test_diet_type_rules() -> None:
+    chicken, salmon, eggs, paneer, dal = (
+        FOODS_BY_ID[i] for i in ("chicken_breast", "salmon", "boiled_eggs", "paneer", "lentil_dal")
+    )
+    assert all(fits_diet(f, "non_vegetarian") for f in (chicken, salmon, eggs, paneer, dal))
+    assert not fits_diet(chicken, "pescatarian") and fits_diet(salmon, "pescatarian")
+    assert fits_diet(eggs, "eggetarian") and not fits_diet(salmon, "eggetarian")
+    assert not fits_diet(eggs, "vegetarian") and fits_diet(paneer, "vegetarian")
+    assert not fits_diet(paneer, "vegan") and fits_diet(dal, "vegan")
+
+
+@pytest.mark.parametrize("diet_type", list(DIET_TYPES))
+def test_diet_plan_respects_diet_type(diet_type: str) -> None:
+    profile = P(diet_type=diet_type)
+    for offset in range(14):
+        plan = build_diet_plan(profile, compute_metrics(profile), date(2026, 2, 1) + timedelta(days=offset))
+        assert [len(m.items) for m in plan.meals] == [2, 3, 3, 1]
+        for item in (i for m in plan.meals for i in m.items):
+            assert fits_diet(FOODS_BY_ID[item.food_id], diet_type)
+
+
+def test_vegan_with_many_allergies_still_gets_full_plan() -> None:
+    profile = P(diet_type="vegan", allergies=["gluten", "soy", "peanuts", "tree_nuts", "sesame"])
+    plan = build_diet_plan(profile, compute_metrics(profile), date(2026, 4, 1))
+    assert [len(m.items) for m in plan.meals] == [2, 3, 3, 1]
+
+
+def test_log_only_foods_are_never_planned() -> None:
+    planned = set()
+    for offset in range(60):
+        plan = build_diet_plan(P(), compute_metrics(P()), date(2026, 1, 1) + timedelta(days=offset))
+        planned |= {i.food_id for m in plan.meals for i in m.items}
+    assert not any(FOODS_BY_ID[f].category in ("meal", "treat") for f in planned)
+
+
+def test_food_database_is_consistent() -> None:
+    assert len(FOODS) >= 100
+    assert len({f.id for f in FOODS}) == len(FOODS)
+    for f in FOODS:
+        kcal = f.protein_g * 4 + f.carbs_g * 4 + f.fat_g * 9
+        assert abs(kcal - f.calories) / f.calories < 0.25, f.name
+
+
+def test_asian_bmi_cutoffs() -> None:
+    who = compute_metrics(P(weight_kg=72))
+    asian = compute_metrics(P(weight_kg=72, bmi_standard="asian"))
+    assert who.bmi == asian.bmi == 23.5
+    assert who.bmi_category == "normal"
+    assert asian.bmi_category == "overweight"
+    assert asian.healthy_weight_range_kg[1] < who.healthy_weight_range_kg[1]
+    assert bmi_category(27.5, "asian") == "obese"
+
+
+def test_asian_obese_gets_low_impact_workouts() -> None:
+    profile = P(weight_kg=86, bmi_standard="asian")  # BMI 28.1
+    plan = build_workout_plan(profile, compute_metrics(profile), date(2026, 1, 5))
+    assert plan.low_impact
+
+
+@pytest.mark.parametrize("equipment", ["none", "dumbbells", "gym"])
+def test_workout_uses_available_equipment(equipment: str) -> None:
+    allowed = {"none": {"none"}, "dumbbells": {"none", "dumbbells"}, "gym": {"none", "dumbbells", "gym"}}
+    by_name = {e.name: e for e in EXERCISES}
+    profile = P(equipment=equipment, activity_level="active")
+    plan = build_workout_plan(profile, compute_metrics(profile), date(2026, 1, 5))
+    used = [by_name[e.name] for d in plan.week for e in d.exercises if e.name in by_name]
+    assert used and all(e.equipment in allowed[equipment] for e in used)
+    if equipment != "none":
+        strength = [e for e in used if e.group in ("upper", "lower")]
+        assert all(e.equipment == equipment for e in strength)
+
+
+def test_swaps_replace_dish_and_invalid_swaps_are_ignored() -> None:
+    profile = P(diet_type="vegetarian")
+    day = date(2026, 6, 1)
+    metrics = compute_metrics(profile)
+    plan = build_diet_plan(profile, metrics, day)
+    alternatives = swap_alternatives(plan, profile, "lunch", 0)
+    in_plan = {i.food_id for m in plan.meals for i in m.items}
+    assert alternatives and not {a.food_id for a in alternatives} & in_plan
+    assert all(fits_diet(FOODS_BY_ID[a.food_id], "vegetarian") for a in alternatives)
+
+    choice = alternatives[0].food_id
+    swapped = build_diet_plan(profile, metrics, day, {("lunch", 0): choice, ("dinner", 0): "chicken_breast"})
+    lunch = next(m for m in swapped.meals if m.meal_type == "lunch")
+    dinner = next(m for m in swapped.meals if m.meal_type == "dinner")
+    assert lunch.items[0].food_id == choice and lunch.items[0].swapped
+    assert dinner.items[0].food_id != "chicken_breast"
+    assert swapped.has_swaps

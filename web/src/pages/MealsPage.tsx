@@ -99,7 +99,7 @@ function AddFood({ day, onAdded }: { day: string; onAdded: (m: MealLog) => void 
           <input
             className="input"
             type="search"
-            placeholder="Search foods, e.g. dal, eggs, rice…"
+            placeholder="Search foods, e.g. dal, paneer, chicken…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             aria-label="Search foods"
@@ -121,6 +121,16 @@ function AddFood({ day, onAdded }: { day: string; onAdded: (m: MealLog) => void 
                       Allergen
                     </span>
                   )}
+                  {!f.fits_diet && (
+                    <span className="tag tag-warn" style={{ marginLeft: 6 }}>
+                      Not in your diet
+                    </span>
+                  )}
+                  {f.source === 'usda' && (
+                    <span className="tag" style={{ marginLeft: 6 }}>
+                      USDA
+                    </span>
+                  )}
                 </span>
                 <span className="small muted num">{fmt(f.calories)} kcal</span>
               </button>
@@ -136,6 +146,20 @@ function AddFood({ day, onAdded }: { day: string; onAdded: (m: MealLog) => void 
                     you listed as an allergy.
                   </span>
                 </div>
+              )}
+              {!selected.fits_diet && (
+                <div className="alert alert-warn">
+                  <AlertIcon />
+                  <span>
+                    <strong>{selected.name}</strong> doesn't match the diet type in your profile.
+                  </span>
+                </div>
+              )}
+              {selected.source === 'usda' && (
+                <p className="small muted">
+                  Nutrition from USDA FoodData Central, per 100 g. Allergens are estimated from the name and
+                  ingredients — always check the label.
+                </p>
               )}
               <div className="row" style={{ alignItems: 'flex-end' }}>
                 <label className="field" style={{ width: 120 }}>

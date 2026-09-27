@@ -1,14 +1,15 @@
-from datetime import date
+from datetime import date, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.data.foods import FOODS_BY_ID
 from app.database import get_db
 from app.models import MealLog, Profile, User
-from app.schemas import DailySummaryOut, MealLogIn, MealLogOut, NutrientProgress
+from app.schemas import DailySummaryOut, DayTotalsOut, HistoryOut, MealLogIn, MealLogOut, NutrientProgress
 from app.security import get_current_profile, get_current_user
+from app.services import usda
 from app.services.health import compute_metrics
 
 router = APIRouter(prefix="/api/meals", tags=["meals"])
@@ -41,7 +42,7 @@ def log_meal(
     db: Session = Depends(get_db),
 ) -> MealLogOut:
     if body.food_id is not None:
-        food = FOODS_BY_ID.get(body.food_id)
+        food = FOODS_BY_ID.get(body.food_id) or usda.get_food(body.food_id)
         if food is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Food not found")
         s = body.servings
@@ -120,3 +121,32 @@ def daily_summary(
         fat_g=progress("fat_g", metrics.fat_g),
         meals=[meal_out(m, profile.allergies) for m in meals],
     )
+
+
+@router.get("/history", response_model=HistoryOut)
+def history(
+    end: date,
+    days: int = Query(default=7, ge=1, le=90),
+    user: User = Depends(get_current_user),
+    profile: Profile = Depends(get_current_profile),
+    db: Session = Depends(get_db),
+) -> HistoryOut:
+    start = end - timedelta(days=days - 1)
+    rows = db.execute(
+        select(
+            MealLog.date,
+            func.sum(MealLog.calories),
+            func.sum(MealLog.protein_g),
+            func.sum(MealLog.carbs_g),
+            func.sum(MealLog.fat_g),
+        )
+        .where(MealLog.user_id == user.id, MealLog.date >= start, MealLog.date <= end)
+        .group_by(MealLog.date)
+    ).all()
+    totals = {r[0]: r[1:] for r in rows}
+    out = []
+    for i in range(days):
+        d = start + timedelta(days=i)
+        cal, p, c, f = totals.get(d, (0, 0, 0, 0))
+        out.append(DayTotalsOut(date=d, calories=round(cal), protein_g=round(p), carbs_g=round(c), fat_g=round(f)))
+    return HistoryOut(target_calories=compute_metrics(profile).target_calories, days=out)

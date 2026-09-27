@@ -1,6 +1,6 @@
 from datetime import date, datetime, timezone
 
-from sqlalchemy import JSON, Date, DateTime, Float, ForeignKey, Integer, String
+from sqlalchemy import JSON, Date, DateTime, Float, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -38,6 +38,9 @@ class Profile(Base):
     activity_level: Mapped[str] = mapped_column(String(20))
     goal: Mapped[str] = mapped_column(String(20))
     allergies: Mapped[list[str]] = mapped_column(JSON, default=list)
+    diet_type: Mapped[str] = mapped_column(String(20), default="non_vegetarian")
+    bmi_standard: Mapped[str] = mapped_column(String(10), default="who")
+    equipment: Mapped[str] = mapped_column(String(20), default="none")
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
     )
@@ -63,3 +66,25 @@ class MealLog(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
     user: Mapped[User] = relationship(back_populates="meals")
+
+
+class WeightLog(Base):
+    __tablename__ = "weight_logs"
+    __table_args__ = (UniqueConstraint("user_id", "date"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    date: Mapped[date] = mapped_column(Date)
+    weight_kg: Mapped[float] = mapped_column(Float)
+
+
+class PlanSwap(Base):
+    """A user's replacement of one dish in the generated diet plan for a given day."""
+
+    __tablename__ = "plan_swaps"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    date: Mapped[date] = mapped_column(Date, primary_key=True)
+    meal_type: Mapped[str] = mapped_column(String(20), primary_key=True)
+    slot: Mapped[int] = mapped_column(Integer, primary_key=True)
+    food_id: Mapped[str] = mapped_column(String(50))

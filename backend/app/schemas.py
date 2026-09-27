@@ -9,6 +9,9 @@ Sex = Literal["male", "female", "other"]
 ActivityLevel = Literal["sedentary", "light", "moderate", "active", "very_active"]
 Goal = Literal["lose", "maintain", "gain"]
 MealType = Literal["breakfast", "lunch", "dinner", "snack"]
+DietType = Literal["non_vegetarian", "pescatarian", "eggetarian", "vegetarian", "vegan"]
+BmiStandard = Literal["who", "asian"]
+Equipment = Literal["none", "dumbbells", "gym"]
 
 
 # --- Auth ---
@@ -56,6 +59,9 @@ class ProfileIn(BaseModel):
     activity_level: ActivityLevel
     goal: Goal
     allergies: list[str] = []
+    diet_type: DietType = "non_vegetarian"
+    bmi_standard: BmiStandard = "who"
+    equipment: Equipment = "none"
 
     @field_validator("allergies")
     @classmethod
@@ -66,9 +72,16 @@ class ProfileIn(BaseModel):
         return sorted(set(v))
 
 
+class ProfileSaveIn(ProfileIn):
+    # The user's local date, used to record the weigh-in when weight changes.
+    as_of: Date | None = None
+
+
 class MetricsOut(BaseModel):
     bmi: float
     bmi_category: str
+    bmi_standard: BmiStandard
+    bmi_cutoffs: tuple[float, float, float]
     bmr: int
     tdee: int
     effective_goal: Goal
@@ -90,6 +103,7 @@ class ProfileOut(ProfileIn):
 # --- Recommendations ---
 
 class PlannedItemOut(BaseModel):
+    slot: int
     food_id: str
     name: str
     serving: str
@@ -98,6 +112,8 @@ class PlannedItemOut(BaseModel):
     protein_g: float
     carbs_g: float
     fat_g: float
+    target_calories: int
+    swapped: bool
 
 
 class PlannedMealOut(BaseModel):
@@ -115,8 +131,17 @@ class DietPlanOut(BaseModel):
     carbs_g: int
     fat_g: int
     meals: list[PlannedMealOut]
+    diet_type: DietType
     excluded_allergens: list[str]
+    has_swaps: bool
     tips: list[str]
+
+
+class SwapIn(BaseModel):
+    day: Date
+    meal_type: MealType
+    slot: int = Field(ge=0, le=5)
+    food_id: str
 
 
 class PlannedExerciseOut(BaseModel):
@@ -139,6 +164,7 @@ class WorkoutPlanOut(BaseModel):
     goal: Goal
     level: str
     low_impact: bool
+    equipment: Equipment
     days_per_week: int
     week: list[WorkoutDayOut]
     notes: list[str]
@@ -160,11 +186,20 @@ class FoodOut(BaseModel):
     meal_types: list[str]
     allergens: list[str]
     conflicts_with_allergies: list[str] = []
+    fits_diet: bool = True
+    source: Literal["builtin", "usda"] = "builtin"
 
 
-class AllergenOut(BaseModel):
+class OptionOut(BaseModel):
     key: str
     label: str
+
+
+class OptionsOut(BaseModel):
+    allergens: list[OptionOut]
+    diet_types: list[OptionOut]
+    equipment: list[OptionOut]
+    usda_search: bool
 
 
 # --- Meal tracking ---
@@ -221,3 +256,31 @@ class DailySummaryOut(BaseModel):
     carbs_g: NutrientProgress
     fat_g: NutrientProgress
     meals: list[MealLogOut]
+
+
+class DayTotalsOut(BaseModel):
+    date: Date
+    calories: float
+    protein_g: float
+    carbs_g: float
+    fat_g: float
+
+
+class HistoryOut(BaseModel):
+    target_calories: int
+    days: list[DayTotalsOut]
+
+
+# --- Weight tracking ---
+
+class WeightIn(BaseModel):
+    date: Date
+    weight_kg: float = Field(ge=30, le=300)
+
+
+class WeightOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    date: Date
+    weight_kg: float

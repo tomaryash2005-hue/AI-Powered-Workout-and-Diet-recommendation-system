@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { ActivityLevel, Goal, MealType } from './api'
+import type { ActivityLevel, BmiCategory, BmiStandard, Equipment, Goal, MealType } from './api'
 
 export function toISODate(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0')
@@ -7,6 +7,14 @@ export function toISODate(d: Date): string {
 }
 
 export const today = () => toISODate(new Date())
+
+export const dayMs = (iso: string) => {
+  const [y, m, d] = iso.split('-').map(Number)
+  return Date.UTC(y, m - 1, d)
+}
+
+export const shortDate = (iso: string) =>
+  new Date(dayMs(iso)).toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' })
 
 export function shiftDate(iso: string, days: number): string {
   const [y, m, d] = iso.split('-').map(Number)
@@ -42,6 +50,12 @@ export const GOAL_LABELS: Record<Goal, string> = {
   gain: 'Build muscle / gain weight',
 }
 
+export const EQUIPMENT_LABELS: Record<Equipment, string> = {
+  none: 'bodyweight',
+  dumbbells: 'dumbbells',
+  gym: 'full gym',
+}
+
 export const ACTIVITY_LABELS: Record<ActivityLevel, string> = {
   sedentary: 'Sedentary (little or no exercise)',
   light: 'Lightly active (1–3 days/week)',
@@ -63,10 +77,15 @@ export function bmiFrom(heightCm: number, weightKg: number): number | null {
   return Math.round((weightKg / (heightCm / 100) ** 2) * 10) / 10
 }
 
-export function bmiCategory(bmi: number): 'underweight' | 'normal' | 'overweight' | 'obese' {
-  if (bmi < 18.5) return 'underweight'
-  if (bmi < 25) return 'normal'
-  if (bmi < 30) return 'overweight'
+export const BMI_CUTOFFS: Record<BmiStandard, [number, number, number]> = {
+  who: [18.5, 25, 30],
+  asian: [18.5, 23, 27.5],
+}
+
+export function bmiCategory(bmi: number, [normal, overweight, obese]: [number, number, number]): BmiCategory {
+  if (bmi < normal) return 'underweight'
+  if (bmi < overweight) return 'normal'
+  if (bmi < obese) return 'overweight'
   return 'obese'
 }
 
@@ -79,8 +98,9 @@ interface AsyncResult<T> {
 }
 
 // Results are tagged with the loader that produced them, so a new loader (e.g. a different date)
-// never shows stale data, while reload() keeps the current data visible until fresh data arrives.
-export function useAsync<T>(load: () => Promise<T>) {
+// shows no stale data unless keepPrevious is set; reload() keeps the current data visible until
+// fresh data arrives.
+export function useAsync<T>(load: () => Promise<T>, { keepPrevious = false } = {}) {
   const [result, setResult] = useState<AsyncResult<T> | null>(null)
   const [version, setVersion] = useState(0)
 
@@ -96,7 +116,8 @@ export function useAsync<T>(load: () => Promise<T>) {
 
   const current = result?.load === load ? result : null
   return {
-    data: current?.data ?? null,
+    data: current?.data ?? (keepPrevious ? (result?.data ?? null) : null),
+    loading: current === null,
     error: current?.error ?? null,
     reload: () => setVersion((v) => v + 1),
   }

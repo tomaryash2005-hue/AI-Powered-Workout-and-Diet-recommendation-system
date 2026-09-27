@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 import { api } from '../api'
 import { ChevronDown } from '../components/Icons'
-import { today, todayWeekday, useAsync } from '../utils'
+import { EQUIPMENT_LABELS, today, todayWeekday, useAsync } from '../utils'
 
 export default function WorkoutPage() {
   const { data: plan, error } = useAsync(useCallback(() => api.workoutPlan(today()), []))
@@ -16,7 +16,8 @@ export default function WorkoutPage() {
         <div>
           <h1>Workout plan</h1>
           <p className="muted">
-            {plan.days_per_week} training days this week · {plan.level} level
+            {plan.days_per_week} training days this week · {plan.level} level ·{' '}
+            {EQUIPMENT_LABELS[plan.equipment]}
             {plan.low_impact && ' · low impact'}
           </p>
         </div>

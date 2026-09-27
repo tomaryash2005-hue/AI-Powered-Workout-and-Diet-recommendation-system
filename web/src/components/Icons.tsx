@@ -47,6 +47,12 @@ export const JournalIcon = () => (
   </Svg>
 )
 
+export const ChartIcon = () => (
+  <Svg>
+    <path d="M4 20V4M4 20h16M8 16l4-5 3 3 5-6" />
+  </Svg>
+)
+
 export const UserIcon = () => (
   <Svg>
     <circle cx="12" cy="8" r="4" />
