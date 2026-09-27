@@ -73,7 +73,24 @@ Environment variables (or a `backend/.env` file):
 | `FITAI_CORS_ORIGINS` | `["http://localhost:5173"]` | JSON list |
 | `FITAI_USDA_API_KEY` | unset | Free api.data.gov key (see the FoodData Central API guide) — enables USDA food search |
 
-> **Upgrading an existing local database:** tables are created automatically on startup, but existing tables aren't migrated. If you ran an earlier version, delete `backend/fitai.db` so it's recreated with the new columns.
+## Database migrations
+
+The schema is managed with [Alembic](https://alembic.sqlalchemy.org). The backend applies any pending migrations automatically on startup, so updating the code and restarting upgrades the database without losing data.
+
+When you change a model in `backend/app/models.py`, generate and review a migration:
+
+```bash
+cd backend
+.venv/bin/alembic revision --autogenerate -m "describe the change"
+# review migrations/versions/<new file>, then:
+.venv/bin/alembic upgrade head      # or just restart the server
+```
+
+A test (`tests/test_migrations.py`) fails if the models and migrations drift apart. Databases created before migrations were added are adopted automatically. The exception is one from the very first version (before diet types), which has to be deleted (`backend/fitai.db`).
+
+## Continuous integration
+
+GitHub Actions (`.github/workflows/ci.yml`) runs on every push and pull request. It runs the backend tests, including the migration checks, and the web app's lint, type check and build.
 
 ## Disclaimer
 
