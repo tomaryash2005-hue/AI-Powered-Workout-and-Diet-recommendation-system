@@ -1,7 +1,8 @@
 from datetime import date as Date
-from typing import Literal
+from typing import Annotated, Literal
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
+from pydantic import AfterValidator, BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
 from app.data.foods import ALLERGENS
 
@@ -16,17 +17,19 @@ Equipment = Literal["none", "dumbbells", "gym"]
 
 # --- Auth ---
 
+def _fits_bcrypt(v: str) -> str:
+    if len(v.encode()) > 72:
+        raise ValueError("Password must be at most 72 bytes")
+    return v
+
+
+NewPassword = Annotated[str, Field(min_length=8), AfterValidator(_fits_bcrypt)]
+
+
 class RegisterIn(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     email: EmailStr
-    password: str = Field(min_length=8)
-
-    @field_validator("password")
-    @classmethod
-    def password_fits_bcrypt(cls, v: str) -> str:
-        if len(v.encode()) > 72:
-            raise ValueError("Password must be at most 72 bytes")
-        return v
+    password: NewPassword
 
 
 class LoginIn(BaseModel):
@@ -200,6 +203,8 @@ class OptionsOut(BaseModel):
     diet_types: list[OptionOut]
     equipment: list[OptionOut]
     usda_search: bool
+    password_reset: bool
+    push_public_key: str | None
 
 
 # --- Meal tracking ---
@@ -284,3 +289,119 @@ class WeightOut(BaseModel):
     id: int
     date: Date
     weight_kg: float
+
+
+# --- Account ---
+
+class ChangePasswordIn(BaseModel):
+    current_password: str
+    new_password: NewPassword
+
+
+class ForgotPasswordIn(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordIn(BaseModel):
+    token: str = Field(min_length=10, max_length=200)
+    new_password: NewPassword
+
+
+class DeleteAccountIn(BaseModel):
+    password: str
+
+
+# --- Workout logging ---
+
+class WorkoutSetIn(BaseModel):
+    exercise: str = Field(min_length=1, max_length=120)
+    set_number: int = Field(ge=1, le=50)
+    reps: int | None = Field(default=None, ge=0, le=1000)
+    weight_kg: float | None = Field(default=None, ge=0, le=1000)
+    duration_s: int | None = Field(default=None, ge=0, le=6 * 3600)
+
+
+class WorkoutSetOut(WorkoutSetIn):
+    model_config = ConfigDict(from_attributes=True)
+
+
+class WorkoutIn(BaseModel):
+    date: Date
+    title: str = Field(min_length=1, max_length=100)
+    duration_min: int | None = Field(default=None, ge=0, le=600)
+    notes: str | None = Field(default=None, max_length=500)
+    sets: list[WorkoutSetIn] = Field(default=[], max_length=200)
+
+
+class WorkoutOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    date: Date
+    title: str
+    duration_min: int | None
+    notes: str | None
+    sets: list[WorkoutSetOut]
+
+
+class StrengthPoint(BaseModel):
+    date: Date
+    best_weight_kg: float
+
+
+class StrengthSeries(BaseModel):
+    exercise: str
+    points: list[StrengthPoint]
+
+
+# --- Reminders & push ---
+
+def _valid_timezone(v: str) -> str:
+    try:
+        ZoneInfo(v)
+    except (ZoneInfoNotFoundError, ValueError) as e:
+        raise ValueError(f"Unknown timezone: {v}") from e
+    return v
+
+
+TimeOfDay = Annotated[str, Field(pattern=r"^([01]\d|2[0-3]):[0-5]\d$")]
+
+
+class ReminderSettingsIn(BaseModel):
+    timezone: Annotated[str, Field(max_length=64), AfterValidator(_valid_timezone)] = "UTC"
+    meals_enabled: bool = False
+    breakfast_time: TimeOfDay = "08:30"
+    lunch_time: TimeOfDay = "13:00"
+    dinner_time: TimeOfDay = "20:00"
+    weigh_in_enabled: bool = False
+    weigh_in_weekday: int = Field(default=0, ge=0, le=6)
+    weigh_in_time: TimeOfDay = "07:30"
+    workout_enabled: bool = False
+    workout_time: TimeOfDay = "18:00"
+
+
+class ReminderSettingsOut(ReminderSettingsIn):
+    model_config = ConfigDict(from_attributes=True)
+
+    push_devices: int = 0
+
+
+class PushKeys(BaseModel):
+    p256dh: str = Field(min_length=1, max_length=200)
+    auth: str = Field(min_length=1, max_length=100)
+
+
+class PushSubscriptionIn(BaseModel):
+    endpoint: str = Field(pattern=r"^https://", max_length=1000)
+    keys: PushKeys
+
+
+class PushUnsubscribeIn(BaseModel):
+    endpoint: str = Field(max_length=1000)
+
+
+class ReminderRunOut(BaseModel):
+    users_checked: int
+    sent: int
+    skipped: int
+    removed_subscriptions: int

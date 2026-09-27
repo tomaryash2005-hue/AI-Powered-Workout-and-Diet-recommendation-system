@@ -33,6 +33,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     register: async (name, email, password) => accept(await api.register(name, email, password)),
     logout,
     markProfileComplete: () => setUser((u) => (u ? { ...u, has_profile: true } : u)),
+    acceptSession: accept,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
