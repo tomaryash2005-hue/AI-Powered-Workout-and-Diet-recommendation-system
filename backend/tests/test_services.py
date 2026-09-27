@@ -128,6 +128,22 @@ def test_diet_type_rules() -> None:
     assert not fits_diet(paneer, "vegan") and fits_diet(dal, "vegan")
 
 
+def test_jain_diet_excludes_root_vegetables_onion_and_garlic() -> None:
+    assert fits_diet(FOODS_BY_ID["paneer"], "jain")
+    assert fits_diet(FOODS_BY_ID["jain_dal"], "jain")
+    for food_id in ("potato", "sweet_potato", "chana_masala", "lentil_dal", "boiled_eggs", "tofu_scramble"):
+        assert not fits_diet(FOODS_BY_ID[food_id], "jain"), food_id
+    # Anything a Jain can eat is also vegetarian.
+    assert all(fits_diet(f, "vegetarian") for f in FOODS if fits_diet(f, "jain"))
+
+
+def test_jain_with_allergies_still_gets_full_plan() -> None:
+    profile = P(diet_type="jain", allergies=["dairy", "gluten", "soy", "peanuts"])
+    for offset in range(14):
+        plan = build_diet_plan(profile, compute_metrics(profile), date(2026, 5, 1) + timedelta(days=offset))
+        assert [len(m.items) for m in plan.meals] == [2, 3, 3, 1]
+
+
 @pytest.mark.parametrize("diet_type", list(DIET_TYPES))
 def test_diet_plan_respects_diet_type(diet_type: str) -> None:
     profile = P(diet_type=diet_type)

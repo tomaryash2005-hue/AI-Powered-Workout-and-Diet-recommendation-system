@@ -9,7 +9,7 @@ Sex = Literal["male", "female", "other"]
 ActivityLevel = Literal["sedentary", "light", "moderate", "active", "very_active"]
 Goal = Literal["lose", "maintain", "gain"]
 MealType = Literal["breakfast", "lunch", "dinner", "snack"]
-DietType = Literal["non_vegetarian", "pescatarian", "eggetarian", "vegetarian", "vegan"]
+DietType = Literal["non_vegetarian", "pescatarian", "eggetarian", "vegetarian", "jain", "vegan"]
 BmiStandard = Literal["who", "asian"]
 Equipment = Literal["none", "dumbbells", "gym"]
 

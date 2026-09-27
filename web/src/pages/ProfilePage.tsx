@@ -47,6 +47,7 @@ const DIET_HINTS: Record<DietType, string> = {
   pescatarian: 'Fish and seafood, eggs and dairy — no meat',
   eggetarian: 'Vegetarian food plus eggs',
   vegetarian: 'No meat, fish or eggs — dairy is fine',
+  jain: 'Vegetarian without onion, garlic, ginger, potatoes or other root vegetables',
   vegan: 'Only plant foods — no dairy, eggs, meat or fish',
 }
 

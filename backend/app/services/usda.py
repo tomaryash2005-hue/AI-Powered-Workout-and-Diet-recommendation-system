@@ -42,7 +42,11 @@ KEYWORDS: dict[str, str] = {
     "sesame": r"sesame|tahini",
     "meat": r"chicken|beef|pork|\blamb\b|mutton|turkey|bacon|\bham\b|sausage|salami|pepperoni|"
     r"veal|venison|\bduck\b|gelatin|lard",
+    "jain_restricted": r"onion|garlic|potato|carrot|\bbeets?\b|beetroot|radish|ginger|turnip|\byams?\b|"
+    r"shallot|\bleeks?\b|scallion|mushroom|honey",
 }
+
+DIET_FLAGS = ("meat", "jain_restricted")
 
 _cache: dict[str, Food] = {}
 
@@ -78,11 +82,12 @@ def _nutrient_values(raw: list[dict[str, Any]]) -> dict[str, float]:
     return values
 
 
-def detect_tags(text: str) -> tuple[tuple[str, ...], bool]:
+def detect_tags(text: str) -> tuple[tuple[str, ...], set[str]]:
+    """Best-effort (allergens, diet flags) found in a food's name and ingredients."""
     text = text.lower()
     found = [k for k, pattern in KEYWORDS.items() if re.search(pattern, text)]
-    allergens = tuple(k for k in found if k != "meat")
-    return allergens, "meat" in found
+    allergens = tuple(k for k in found if k not in DIET_FLAGS)
+    return allergens, {k for k in found if k in DIET_FLAGS}
 
 
 def _to_food(item: dict[str, Any]) -> Food | None:
@@ -95,7 +100,7 @@ def _to_food(item: dict[str, Any]) -> Food | None:
     brand = item.get("brandName") or item.get("brandOwner")
     if brand:
         name = f"{name} ({str(brand).strip().title()})"
-    allergens, meat = detect_tags(f"{item.get('description', '')} {item.get('ingredients', '')}")
+    allergens, flags = detect_tags(f"{item.get('description', '')} {item.get('ingredients', '')}")
     food = Food(
         id=f"{ID_PREFIX}{item['fdcId']}",
         name=name[:120],
@@ -103,7 +108,8 @@ def _to_food(item: dict[str, Any]) -> Food | None:
         category="external",
         meal_types=("breakfast", "lunch", "dinner", "snack"),
         allergens=allergens,
-        meat=meat,
+        meat="meat" in flags,
+        jain_restricted="jain_restricted" in flags,
         **values,
     )
     if len(_cache) > 5000:
