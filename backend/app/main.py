@@ -1,10 +1,12 @@
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.database import engine
+from app.frontend import mount_frontend
 from app.migrate import migrate
 from app.routers import auth, foods, meals, profile, recommendations, weight
 
@@ -32,3 +34,9 @@ for r in (auth.router, profile.router, recommendations.router, foods.router, mea
 @app.get("/api/health", tags=["meta"])
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+DEFAULT_STATIC_DIR = Path(__file__).resolve().parents[2] / "web" / "dist"
+static_dir = settings.static_dir or DEFAULT_STATIC_DIR
+if (static_dir / "index.html").is_file():
+    mount_frontend(app, static_dir)

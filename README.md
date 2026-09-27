@@ -55,12 +55,46 @@ npm run dev
 
 Open http://localhost:5173. The dev server forwards `/api` requests to the backend on port 8000.
 
+After `npm run build`, the backend also serves the built app itself at http://localhost:8000. That's how it runs in production.
+
 ### Tests & checks
 
 ```bash
-cd backend && .venv/bin/pytest     # backend unit + API tests
+cd backend && .venv/bin/pytest     # backend unit + API tests (SQLite)
 cd web && npm run lint && npm run build
 ```
+
+To run the backend tests against Postgres as well, point `FITAI_TEST_POSTGRES_URL` at a **disposable** database (the tests wipe its `public` schema):
+
+```bash
+FITAI_TEST_POSTGRES_URL=postgresql://user:pass@localhost:5432/fitai_test .venv/bin/pytest
+```
+
+## Deploying
+
+FitAI deploys as a **single Docker container** that serves both the API and the web app, plus a Postgres database. Migrations run automatically on every start.
+
+### Render (one-click Blueprint)
+
+The repo includes a [`render.yaml`](render.yaml) Blueprint that creates the web service and a Postgres database, and wires them together.
+
+1. Sign in at [render.com](https://render.com) with your GitHub account.
+2. **New → Blueprint**, pick this repository, and confirm. Render generates `FITAI_JWT_SECRET` and connects `DATABASE_URL` for you. `FITAI_USDA_API_KEY` is optional; leave it blank to skip USDA search.
+3. Wait for the first build and deploy. Your app is then live at the `https://<name>.onrender.com` URL shown in the dashboard. Open it on your phone and use **Add to Home Screen** to install it.
+
+Every push to `main` redeploys automatically. Render's free tier has limits: free web services sleep when idle, so the first visit after a while is slow, and free databases are time-limited. Check Render's pricing page, and move the database to a paid plan before relying on it for real data.
+
+### Anywhere else that runs Docker
+
+```bash
+docker build -t fitai .
+docker run -p 8000:8000 \
+  -e FITAI_JWT_SECRET="$(openssl rand -hex 32)" \
+  -e DATABASE_URL="postgres://user:pass@host:5432/fitai" \
+  fitai
+```
+
+The image runs in production mode, so it refuses to start without a real `FITAI_JWT_SECRET`. Without `DATABASE_URL` it falls back to SQLite inside the container, which is lost when the container is replaced. Use Postgres for anything real. The container listens on `$PORT` (default 8000), as Railway, Fly.io and similar platforms expect.
 
 ## Configuration
 
@@ -68,8 +102,10 @@ Environment variables (or a `backend/.env` file):
 
 | Variable | Default | Notes |
 | --- | --- | --- |
-| `FITAI_DATABASE_URL` | `sqlite:///./fitai.db` | e.g. `postgresql+psycopg://user:pass@host/db` (install the driver) |
-| `FITAI_JWT_SECRET` | dev placeholder | **Must be set to a long random value in production** |
+| `FITAI_DATABASE_URL` or `DATABASE_URL` | `sqlite:///./fitai.db` | Postgres URLs such as `postgres://user:pass@host/db` work as given |
+| `FITAI_JWT_SECRET` | dev placeholder | **Required in production:** a random value of at least 32 characters |
+| `FITAI_ENVIRONMENT` | `development` | `production` (set in the Docker image) enforces a real secret |
+| `FITAI_STATIC_DIR` | `web/dist` if built | Folder with the built web app for the backend to serve |
 | `FITAI_CORS_ORIGINS` | `["http://localhost:5173"]` | JSON list |
 | `FITAI_USDA_API_KEY` | unset | Free api.data.gov key (see the FoodData Central API guide) — enables USDA food search |
 
@@ -90,7 +126,11 @@ A test (`tests/test_migrations.py`) fails if the models and migrations drift apa
 
 ## Continuous integration
 
-GitHub Actions (`.github/workflows/ci.yml`) runs on every push and pull request. It runs the backend tests, including the migration checks, and the web app's lint, type check and build.
+GitHub Actions (`.github/workflows/ci.yml`) runs on every pull request and every push to `main`. It runs:
+
+- the backend tests on SQLite and on Postgres, including the migration checks
+- the web app's lint, type check and build
+- a Docker image build with a smoke test
 
 ## Disclaimer
 
