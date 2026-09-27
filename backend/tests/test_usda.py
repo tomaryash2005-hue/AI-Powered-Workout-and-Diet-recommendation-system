@@ -78,20 +78,22 @@ def test_search_parses_nutrients_and_tags(fake_usda: list[str]) -> None:
 
 
 @pytest.mark.parametrize(
-    "text, allergens, meat",
+    "text, allergens, flags",
     [
-        ("Peanut butter, smooth", {"peanuts"}, False),
-        ("Butternut squash", set(), False),
-        ("Coconut milk, canned", set(), False),
-        ("Eggplant, raw", set(), False),
-        ("Scrambled eggs with butter", {"eggs", "dairy"}, False),
-        ("Ham and cheese sandwich on wheat bread", {"dairy", "gluten"}, True),
-        ("Shrimp tempura", {"shellfish"}, False),
+        ("Peanut butter, smooth", {"peanuts"}, set()),
+        ("Butternut squash", set(), set()),
+        ("Coconut milk, canned", set(), set()),
+        ("Eggplant, raw", set(), set()),
+        ("Scrambled eggs with butter", {"eggs", "dairy"}, set()),
+        ("Ham and cheese sandwich on wheat bread", {"dairy", "gluten"}, {"meat"}),
+        ("Shrimp tempura", {"shellfish"}, set()),
+        ("Potato chips, sour cream and onion", {"dairy"}, {"jain_restricted"}),
+        ("Chicken soup with garlic", set(), {"meat", "jain_restricted"}),
     ],
 )
-def test_detect_tags(text: str, allergens: set[str], meat: bool) -> None:
-    found, is_meat = usda.detect_tags(text)
-    assert set(found) == allergens and is_meat is meat
+def test_detect_tags(text: str, allergens: set[str], flags: set[str]) -> None:
+    found, found_flags = usda.detect_tags(text)
+    assert set(found) == allergens and found_flags == flags
 
 
 def test_logging_usda_food(profiled_client: TestClient, fake_usda: list[str]) -> None:

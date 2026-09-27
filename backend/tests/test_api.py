@@ -107,7 +107,7 @@ def test_cannot_delete_other_users_meal(profiled_client: TestClient) -> None:
 def test_options(client: TestClient) -> None:
     data = client.get("/api/foods/options").json()
     assert [d["key"] for d in data["diet_types"]] == [
-        "non_vegetarian", "pescatarian", "eggetarian", "vegetarian", "vegan",
+        "non_vegetarian", "pescatarian", "eggetarian", "vegetarian", "jain", "vegan",
     ]
     assert {e["key"] for e in data["equipment"]} == {"none", "dumbbells", "gym"}
     assert data["usda_search"] is False

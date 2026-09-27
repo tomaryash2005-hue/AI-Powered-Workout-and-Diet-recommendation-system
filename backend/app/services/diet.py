@@ -37,6 +37,8 @@ DIET_TIPS = {
     "vegan": "Combine legumes with grains (dal + rice, beans + tortillas) for complete protein, "
     "and consider a vitamin B12 supplement.",
     "vegetarian": "Dairy, dal, chickpeas and soy are your best protein sources — include one at every meal.",
+    "jain": "Paneer, dal, chana and soy keep protein up without onion, garlic or root vegetables; "
+    "raw banana and bottle gourd make good substitutes for potato.",
     "eggetarian": "Eggs are a cheap, complete protein — they make a great breakfast anchor.",
     "pescatarian": "Aim for oily fish like salmon twice a week for omega-3 fats.",
 }
