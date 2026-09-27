@@ -65,6 +65,30 @@ export interface Options {
   usda_search: boolean
   password_reset: boolean
   push_public_key: string | null
+  ai_logging: boolean
+}
+
+export interface AiMealItem {
+  food_id: string | null
+  name: string
+  serving: string
+  servings: number
+  per_serving: Nutrition
+  allergens: string[]
+  conflicts_with_allergies: string[]
+  fits_diet: boolean
+  confidence: 'high' | 'medium' | 'low'
+}
+
+export interface AiParseResult {
+  items: AiMealItem[]
+  notes: string
+  remaining_today: number
+}
+
+export interface AiImage {
+  media_type: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif'
+  data: string
 }
 
 export interface Nutrition {
@@ -354,6 +378,8 @@ export const api = {
     request<WorkoutPlan>('GET', `/api/recommendations/workout${qs({ day })}`),
 
   logMeal: (meal: MealLogInput) => request<MealLog>('POST', '/api/meals', meal),
+  parseMeal: (mealType: MealType, text: string, image: AiImage | null) =>
+    request<AiParseResult>('POST', '/api/ai/parse-meal', { meal_type: mealType, text: text || null, image }),
   deleteMeal: (id: number) => request<void>('DELETE', `/api/meals/${id}`),
   summary: (day: string) => request<DailySummary>('GET', `/api/meals/summary${qs({ day })}`),
   history: (end: string, days: number) =>

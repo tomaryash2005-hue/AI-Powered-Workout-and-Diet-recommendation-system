@@ -1220,3 +1220,59 @@ details.table-toggle summary {
 .set-grid .set-label {
   font-size: 0.85rem;
 }
+
+/* ---------- AI meal logging ---------- */
+
+textarea.input {
+  resize: vertical;
+  min-height: 72px;
+  line-height: 1.4;
+}
+
+.ai-photo {
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+
+.ai-items > li {
+  flex-wrap: wrap;
+}
+
+.ai-servings {
+  width: 84px;
+  gap: 2px;
+}
+
+.ai-servings .input {
+  min-height: 34px;
+  padding: 4px 8px;
+}
+
+@media (max-width: 560px) {
+  .ai-items > li {
+    column-gap: 10px;
+    row-gap: 6px;
+  }
+
+  .ai-items > li .list-main {
+    flex-basis: 100%;
+  }
+
+  .ai-items > li .list-end {
+    margin-left: auto;
+  }
+
+  .ai-servings {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    width: auto;
+  }
+
+  .ai-servings .input {
+    width: 76px;
+  }
+}

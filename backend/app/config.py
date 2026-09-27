@@ -44,6 +44,13 @@ class Settings(BaseSettings):
     vapid_subject: str = "mailto:admin@example.com"
     # Shared secret the scheduler sends to trigger reminders.
     cron_secret: str | None = None
+    # AI meal logging (text and photo) via the Claude API. Off unless a key is set.
+    anthropic_api_key: str | None = Field(
+        default=None, validation_alias=AliasChoices("FITAI_ANTHROPIC_API_KEY", "ANTHROPIC_API_KEY")
+    )
+    ai_model: str = "claude-opus-5"
+    # Per-user cap on AI requests per UTC day, to keep API costs predictable.
+    ai_daily_limit: int = 30
 
     @field_validator("database_url")
     @classmethod
