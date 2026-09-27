@@ -8,7 +8,7 @@ from app.config import settings
 from app.database import engine
 from app.frontend import mount_frontend
 from app.migrate import migrate
-from app.routers import account, auth, foods, meals, notifications, profile, recommendations, weight, workouts
+from app.routers import account, ai, auth, foods, meals, notifications, profile, recommendations, weight, workouts
 
 
 @asynccontextmanager
@@ -37,6 +37,7 @@ for r in (
     weight.router,
     workouts.router,
     notifications.router,
+    ai.router,
 ):
     app.include_router(r)
 

@@ -205,6 +205,7 @@ class OptionsOut(BaseModel):
     usda_search: bool
     password_reset: bool
     push_public_key: str | None
+    ai_logging: bool
 
 
 # --- Meal tracking ---
@@ -405,3 +406,48 @@ class ReminderRunOut(BaseModel):
     sent: int
     skipped: int
     removed_subscriptions: int
+
+
+# --- AI meal logging ---
+
+class Nutrition(BaseModel):
+    calories: float
+    protein_g: float
+    carbs_g: float
+    fat_g: float
+
+
+class AiImageIn(BaseModel):
+    media_type: Literal["image/jpeg", "image/png", "image/webp", "image/gif"]
+    # Base64-encoded bytes; about 7 MB of base64 is the API's 5 MB image limit.
+    data: str = Field(min_length=1, max_length=7_000_000)
+
+
+class AiParseIn(BaseModel):
+    meal_type: MealType
+    text: str | None = Field(default=None, max_length=1000)
+    image: AiImageIn | None = None
+
+    @model_validator(mode="after")
+    def text_or_image(self) -> "AiParseIn":
+        if not (self.text and self.text.strip()) and self.image is None:
+            raise ValueError("Describe the meal or add a photo")
+        return self
+
+
+class AiMealItem(BaseModel):
+    food_id: str | None
+    name: str
+    serving: str
+    servings: float
+    per_serving: Nutrition
+    allergens: list[str]
+    conflicts_with_allergies: list[str]
+    fits_diet: bool
+    confidence: Literal["high", "medium", "low"]
+
+
+class AiParseOut(BaseModel):
+    items: list[AiMealItem]
+    notes: str
+    remaining_today: int

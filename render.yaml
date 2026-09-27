@@ -29,6 +29,9 @@ services:
       # Sender for those emails, e.g. "FitAI <noreply@yourdomain.com>" (a domain verified in Resend).
       - key: FITAI_EMAIL_FROM
         sync: false
+      # AI meal logging from text and photos (Claude). Leave blank to turn it off.
+      - key: ANTHROPIC_API_KEY
+        sync: false
       # Optional: a free api.data.gov key enables USDA food search.
       - key: FITAI_USDA_API_KEY
         sync: false
