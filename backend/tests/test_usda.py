@@ -113,3 +113,21 @@ def test_logging_usda_food(profiled_client: TestClient, fake_usda: list[str]) ->
     assert fake_usda.count("/food/444") == 1
     bad = c.post("/api/meals", json={"date": "2026-09-27", "meal_type": "snack", "food_id": "usda:abc"})
     assert bad.status_code == 404
+
+
+@pytest.mark.parametrize(
+    "text, allergens, flags",
+    [
+        ("Aloo paratha", {"gluten"}, {"jain_restricted"}),
+        ("Aalu gobi", set(), {"jain_restricted"}),
+        ("Dahi vada", {"dairy"}, set()),
+        ("Murgh makhani", {"dairy"}, {"meat"}),
+        ("Kaju katli", {"tree_nuts"}, set()),
+        ("Til ladoo", {"sesame"}, set()),
+        ("Jhinga masala", {"shellfish"}, set()),
+        ("Moong dal", set(), set()),
+    ],
+)
+def test_detect_tags_indian_names(text: str, allergens: set[str], flags: set[str]) -> None:
+    found, found_flags = usda.detect_tags(text)
+    assert set(found) == allergens and found_flags == flags

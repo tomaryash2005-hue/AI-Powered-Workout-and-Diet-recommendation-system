@@ -6,6 +6,7 @@ from app.models import User
 from app.schemas import FoodOut, MealType, OptionOut, OptionsOut
 from app.security import get_current_user
 from app.services import usda
+from app.services.ai_meals import ai_enabled
 from app.services.email import email_enabled
 from app.services.push import public_key
 
@@ -43,6 +44,7 @@ def list_options() -> OptionsOut:
         usda_search=usda.enabled(),
         password_reset=email_enabled(),
         push_public_key=public_key(),
+        ai_logging=ai_enabled(),
     )
 
 
