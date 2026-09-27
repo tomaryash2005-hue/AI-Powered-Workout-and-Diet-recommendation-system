@@ -1,19 +1,22 @@
-from pathlib import Path
+from collections.abc import Iterator
 
 import pytest
 from alembic import command
 from alembic.autogenerate import compare_metadata
 from alembic.runtime.migration import MigrationContext
 from alembic.script import ScriptDirectory
-from sqlalchemy import Engine, create_engine, inspect, text
+from sqlalchemy import Engine, inspect, text
 
 from app.database import Base
 from app.migrate import OutdatedDatabaseError, alembic_config, migrate
+from tests.conftest import make_test_engine
 
 
 @pytest.fixture
-def engine(tmp_path: Path) -> Engine:
-    return create_engine(f"sqlite:///{tmp_path / 'test.db'}")
+def engine() -> Iterator[Engine]:
+    engine = make_test_engine()
+    yield engine
+    engine.dispose()
 
 
 def head_revision() -> str:
