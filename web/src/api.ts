@@ -63,6 +63,8 @@ export interface Options {
   diet_types: Option[]
   equipment: Option[]
   usda_search: boolean
+  password_reset: boolean
+  push_public_key: string | null
 }
 
 export interface Nutrition {
@@ -182,6 +184,48 @@ export interface WeightEntry {
   weight_kg: number
 }
 
+export interface WorkoutSet {
+  exercise: string
+  set_number: number
+  reps: number | null
+  weight_kg: number | null
+  duration_s: number | null
+}
+
+export interface WorkoutInput {
+  date: string
+  title: string
+  duration_min: number | null
+  notes: string | null
+  sets: WorkoutSet[]
+}
+
+export interface Workout extends WorkoutInput {
+  id: number
+}
+
+export interface StrengthSeries {
+  exercise: string
+  points: { date: string; best_weight_kg: number }[]
+}
+
+export interface ReminderSettings {
+  timezone: string
+  meals_enabled: boolean
+  breakfast_time: string
+  lunch_time: string
+  dinner_time: string
+  weigh_in_enabled: boolean
+  weigh_in_weekday: number
+  weigh_in_time: string
+  workout_enabled: boolean
+  workout_time: string
+}
+
+export interface ReminderSettingsOut extends ReminderSettings {
+  push_devices: number
+}
+
 const TOKEN_KEY = 'fitai_token'
 
 export function getToken(): string | null {
@@ -248,6 +292,18 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   return data as T
 }
 
+async function download(path: string, filename: string): Promise<void> {
+  const token = getToken()
+  const res = await fetch(path, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+  if (!res.ok) throw new ApiError(res.status, `Download failed (${res.status})`)
+  const url = URL.createObjectURL(await res.blob())
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
 const qs = (params: Record<string, string | undefined>) => {
   const search = new URLSearchParams()
   for (const [k, v] of Object.entries(params)) if (v) search.set(k, v)
@@ -261,6 +317,16 @@ export const api = {
   login: (email: string, password: string) =>
     request<TokenResponse>('POST', '/api/auth/login', { email, password }),
   me: () => request<User>('GET', '/api/auth/me'),
+  forgotPassword: (email: string) => request<{ detail: string }>('POST', '/api/auth/forgot-password', { email }),
+  resetPassword: (token: string, newPassword: string) =>
+    request<TokenResponse>('POST', '/api/auth/reset-password', { token, new_password: newPassword }),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    request<TokenResponse>('POST', '/api/account/change-password', {
+      current_password: currentPassword,
+      new_password: newPassword,
+    }),
+  exportData: () => download('/api/account/export', 'fitai-export.json'),
+  deleteAccount: (password: string) => request<void>('DELETE', '/api/account', { password }),
 
   getProfile: () => request<Profile>('GET', '/api/profile'),
   saveProfile: (p: ProfileInput, asOf: string) =>
@@ -298,4 +364,19 @@ export const api = {
   logWeight: (date: string, weightKg: number) =>
     request<WeightEntry>('PUT', '/api/weight', { date, weight_kg: weightKg }),
   deleteWeight: (id: number) => request<void>('DELETE', `/api/weight/${id}`),
+
+  workouts: (end: string, days: number) =>
+    request<Workout[]>('GET', `/api/workouts${qs({ end, days: String(days) })}`),
+  logWorkout: (workout: WorkoutInput) => request<Workout>('POST', '/api/workouts', workout),
+  deleteWorkout: (id: number) => request<void>('DELETE', `/api/workouts/${id}`),
+  strength: (end: string, days: number) =>
+    request<StrengthSeries[]>('GET', `/api/workouts/strength${qs({ end, days: String(days) })}`),
+
+  reminderSettings: () => request<ReminderSettingsOut>('GET', '/api/notifications/settings'),
+  saveReminderSettings: (s: ReminderSettings) =>
+    request<ReminderSettingsOut>('PUT', '/api/notifications/settings', s),
+  subscribePush: (sub: PushSubscriptionJSON) => request<void>('POST', '/api/notifications/subscriptions', sub),
+  unsubscribePush: (endpoint: string) =>
+    request<void>('POST', '/api/notifications/subscriptions/remove', { endpoint }),
+  testNotification: () => request<{ sent: number }>('POST', '/api/notifications/test'),
 }

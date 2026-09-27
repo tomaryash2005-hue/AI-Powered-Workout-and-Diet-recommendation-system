@@ -8,7 +8,7 @@ from app.config import settings
 from app.database import engine
 from app.frontend import mount_frontend
 from app.migrate import migrate
-from app.routers import auth, foods, meals, profile, recommendations, weight
+from app.routers import account, auth, foods, meals, notifications, profile, recommendations, weight, workouts
 
 
 @asynccontextmanager
@@ -27,7 +27,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-for r in (auth.router, profile.router, recommendations.router, foods.router, meals.router, weight.router):
+for r in (
+    auth.router,
+    account.router,
+    profile.router,
+    recommendations.router,
+    foods.router,
+    meals.router,
+    weight.router,
+    workouts.router,
+    notifications.router,
+):
     app.include_router(r)
 
 

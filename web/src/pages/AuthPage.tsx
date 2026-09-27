@@ -1,10 +1,14 @@
 import { useState, type FormEvent } from 'react'
-import { useAuth } from '../useAuth'
+import { api } from '../api'
 import { PulseIcon } from '../components/Icons'
+import { useAuth } from '../useAuth'
+import { useAsync } from '../utils'
 
 export default function AuthPage() {
   const { login, register } = useAuth()
-  const [mode, setMode] = useState<'login' | 'register'>('login')
+  const [mode, setMode] = useState<'login' | 'register' | 'forgot'>('login')
+  const [notice, setNotice] = useState<string | null>(null)
+  const { data: options } = useAsync(api.options)
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -14,14 +18,24 @@ export default function AuthPage() {
   const submit = async (e: FormEvent) => {
     e.preventDefault()
     setError(null)
+    setNotice(null)
     setBusy(true)
     try {
-      if (mode === 'login') await login(email, password)
+      if (mode === 'forgot') {
+        setNotice((await api.forgotPassword(email)).detail)
+        setBusy(false)
+      } else if (mode === 'login') await login(email, password)
       else await register(name, email, password)
     } catch (err) {
       setError((err as Error).message)
       setBusy(false)
     }
+  }
+
+  const switchMode = (m: typeof mode) => {
+    setMode(m)
+    setError(null)
+    setNotice(null)
   }
 
   return (
@@ -41,9 +55,9 @@ export default function AuthPage() {
           <button
             type="button"
             role="tab"
-            aria-selected={mode === 'login'}
-            className={mode === 'login' ? 'active' : ''}
-            onClick={() => setMode('login')}
+            aria-selected={mode !== 'register'}
+            className={mode !== 'register' ? 'active' : ''}
+            onClick={() => switchMode('login')}
           >
             Sign in
           </button>
@@ -52,7 +66,7 @@ export default function AuthPage() {
             role="tab"
             aria-selected={mode === 'register'}
             className={mode === 'register' ? 'active' : ''}
-            onClick={() => setMode('register')}
+            onClick={() => switchMode('register')}
           >
             Create account
           </button>
@@ -82,23 +96,50 @@ export default function AuthPage() {
               required
             />
           </label>
-          <label className="field">
-            <span>Password</span>
-            <input
-              className="input"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-              minLength={mode === 'register' ? 8 : undefined}
-              required
-            />
-            {mode === 'register' && <small className="muted">At least 8 characters.</small>}
-          </label>
+          {mode !== 'forgot' && (
+            <label className="field">
+              <span>Password</span>
+              <input
+                className="input"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                minLength={mode === 'register' ? 8 : undefined}
+                aria-describedby={mode === 'register' ? 'password-hint' : undefined}
+                required
+              />
+            </label>
+          )}
+          {mode === 'register' && (
+            <small id="password-hint" className="muted" style={{ marginTop: -10 }}>
+              At least 8 characters.
+            </small>
+          )}
+          {mode === 'forgot' && (
+            <p className="small muted">Enter your account email and we'll send you a link to choose a new password.</p>
+          )}
           {error && <div className="alert alert-danger">{error}</div>}
+          {notice && <div className="alert alert-info">{notice}</div>}
           <button className="btn btn-primary" disabled={busy}>
-            {busy ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Create account'}
+            {busy
+              ? 'Please wait…'
+              : mode === 'login'
+                ? 'Sign in'
+                : mode === 'forgot'
+                  ? 'Send reset link'
+                  : 'Create account'}
           </button>
+          {mode === 'login' && options?.password_reset && (
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => switchMode('forgot')}>
+              Forgot password?
+            </button>
+          )}
+          {mode === 'forgot' && (
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => switchMode('login')}>
+              Back to sign in
+            </button>
+          )}
         </form>
       </div>
     </div>

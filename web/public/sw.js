@@ -1,5 +1,5 @@
 // Caches the app shell so FitAI opens offline. API responses are private and never cached.
-const CACHE = 'fitai-shell-v1'
+const CACHE = 'fitai-shell-v2'
 const SHELL = ['/', '/manifest.webmanifest', '/favicon.svg', '/icons/icon-192.png']
 
 self.addEventListener('install', (event) => {
@@ -50,5 +50,35 @@ self.addEventListener('fetch', (event) => {
           return res
         }),
     ),
+  )
+})
+
+self.addEventListener('push', (event) => {
+  let data = {}
+  try {
+    data = event.data ? event.data.json() : {}
+  } catch {
+    data = { body: event.data && event.data.text() }
+  }
+  event.waitUntil(
+    self.registration.showNotification(data.title || 'FitAI', {
+      body: data.body || '',
+      icon: '/icons/icon-192.png',
+      badge: '/icons/icon-192.png',
+      tag: data.tag,
+      data: { url: data.url || '/' },
+    }),
+  )
+})
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  const target = new URL(event.notification.data?.url || '/', self.location.origin).href
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windows) => {
+      const open = windows.find((w) => new URL(w.url).origin === self.location.origin)
+      if (open) return open.navigate(target).then((w) => (w || open).focus())
+      return self.clients.openWindow(target)
+    }),
   )
 })
