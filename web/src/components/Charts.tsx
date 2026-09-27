@@ -66,8 +66,10 @@ export function LineChart({
   height = 220,
   format,
   label,
+  empty = 'No weigh-ins in this period yet.',
 }: {
   points: Point[]
+  empty?: string
   band?: [number, number]
   height?: number
   format: (v: number) => string
@@ -77,7 +79,7 @@ export function LineChart({
   const { active, setActive, focusProps } = useActiveIndex(points.length)
 
   if (points.length === 0) {
-    return <div className="chart-empty">No weigh-ins in this period yet.</div>
+    return <div className="chart-empty">{empty}</div>
   }
 
   const values = points.map((p) => p.value)

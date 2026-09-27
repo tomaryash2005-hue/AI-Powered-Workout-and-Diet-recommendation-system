@@ -81,3 +81,15 @@ def test_api_routes_win_and_unknown_api_paths_404(spa: TestClient) -> None:
 def test_spa_does_not_serve_files_outside_dist(spa: TestClient) -> None:
     for path in ("/../secret.txt", "/%2e%2e/secret.txt", "/assets/../../secret.txt"):
         assert "do not serve" not in spa.get(path).text
+
+
+def test_blank_optional_settings_fall_back_to_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("FITAI_EMAIL_FROM", "")
+    monkeypatch.setenv("FITAI_VAPID_PRIVATE_KEY", "")
+    s = Settings()
+    assert s.email_from.startswith("FitAI") and s.vapid_private_key is None
+
+
+def test_render_external_url_is_public_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("RENDER_EXTERNAL_URL", "https://fitai.onrender.com")
+    assert Settings().public_url == "https://fitai.onrender.com"

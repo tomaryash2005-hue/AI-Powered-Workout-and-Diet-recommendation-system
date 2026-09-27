@@ -1,5 +1,6 @@
 # Render Blueprint: one web service (API + web app, built from the Dockerfile) and a Postgres database.
 # Deploy with: Render dashboard → New → Blueprint → select this repository.
+# Values marked "sync: false" are entered in the dashboard; all of them are optional.
 services:
   - type: web
     name: fitai
@@ -13,7 +14,22 @@ services:
         fromDatabase:
           name: fitai-db
           property: connectionString
-      # Optional: a free api.data.gov key enables USDA food search. Leave blank to skip.
+      # Shared with the GitHub "Reminders" workflow (copy it into the repo secret FITAI_CRON_SECRET).
+      - key: FITAI_CRON_SECRET
+        generateValue: true
+      # Push reminders: generate with `python -m app.vapid_keys`. Leave blank to turn reminders off.
+      - key: FITAI_VAPID_PRIVATE_KEY
+        sync: false
+      # Contact address sent to push services, e.g. mailto:you@example.com
+      - key: FITAI_VAPID_SUBJECT
+        sync: false
+      # Password-reset emails via resend.com. Leave blank to hide "Forgot password?".
+      - key: FITAI_RESEND_API_KEY
+        sync: false
+      # Sender for those emails, e.g. "FitAI <noreply@yourdomain.com>" (a domain verified in Resend).
+      - key: FITAI_EMAIL_FROM
+        sync: false
+      # Optional: a free api.data.gov key enables USDA food search.
       - key: FITAI_USDA_API_KEY
         sync: false
 

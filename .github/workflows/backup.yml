@@ -1,0 +1,44 @@
+name: Database backup
+
+# Daily encrypted Postgres backup, kept as a workflow artifact for 30 days.
+# Needs repository secrets FITAI_BACKUP_DATABASE_URL and FITAI_BACKUP_PASSPHRASE (see README → Backups).
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    name: Back up database
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Dump, compress and encrypt
+        env:
+          DATABASE_URL: ${{ secrets.FITAI_BACKUP_DATABASE_URL }}
+          PASSPHRASE: ${{ secrets.FITAI_BACKUP_PASSPHRASE }}
+        run: |
+          if [ -z "$DATABASE_URL" ] || [ -z "$PASSPHRASE" ]; then
+            echo "FITAI_BACKUP_DATABASE_URL or FITAI_BACKUP_PASSPHRASE is not set; skipping."
+            exit 0
+          fi
+          set -euo pipefail
+          file="fitai-$(date -u +%Y%m%d-%H%M).sql.gz.enc"
+          # pg_dump from a recent Postgres image can dump this and any older server version.
+          docker run --rm -e DATABASE_URL postgres:18 \
+              sh -c 'pg_dump --no-owner --no-privileges "$DATABASE_URL"' \
+            | gzip -9 \
+            | openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt -pass env:PASSPHRASE -out "$file"
+          test -s "$file"
+          ls -lh "$file"
+
+      - name: Keep the encrypted backup
+        uses: actions/upload-artifact@v7
+        with:
+          name: fitai-db-backup-${{ github.run_id }}
+          path: fitai-*.sql.gz.enc
+          retention-days: 30
+          if-no-files-found: ignore

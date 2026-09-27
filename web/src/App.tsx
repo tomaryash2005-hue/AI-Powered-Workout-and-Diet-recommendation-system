@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Navigate, NavLink, Route, Routes } from 'react-router-dom'
+import { Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import { useAuth } from './useAuth'
 import {
   ChartIcon,
@@ -9,6 +9,7 @@ import {
   LogoutIcon,
   PulseIcon,
   SaladIcon,
+  SettingsIcon,
   UserIcon,
 } from './components/Icons'
 import AuthPage from './pages/AuthPage'
@@ -17,6 +18,8 @@ import DietPage from './pages/DietPage'
 import MealsPage from './pages/MealsPage'
 import ProfilePage from './pages/ProfilePage'
 import ProgressPage from './pages/ProgressPage'
+import ResetPasswordPage from './pages/ResetPasswordPage'
+import SettingsPage from './pages/SettingsPage'
 import WorkoutPage from './pages/WorkoutPage'
 
 const NAV = [
@@ -52,6 +55,9 @@ function Shell({ children, showNav }: { children: ReactNode; showNav: boolean })
           )}
           <div className="user-menu" style={{ marginLeft: 'auto' }}>
             <span className="user-name small muted">{user?.name}</span>
+            <NavLink to="/settings" className="btn btn-ghost btn-icon" aria-label="Settings" title="Settings">
+              <SettingsIcon />
+            </NavLink>
             <button type="button" className="btn btn-ghost btn-sm" onClick={logout}>
               <LogoutIcon />
               Sign out
@@ -66,7 +72,9 @@ function Shell({ children, showNav }: { children: ReactNode; showNav: boolean })
 
 export default function App() {
   const { user, loading } = useAuth()
+  const { pathname } = useLocation()
 
+  if (pathname === '/reset-password') return <ResetPasswordPage />
   if (loading) return <div className="loading">Loading…</div>
   if (!user) return <AuthPage />
 
@@ -87,6 +95,7 @@ export default function App() {
         <Route path="/meals" element={<MealsPage />} />
         <Route path="/progress" element={<ProgressPage />} />
         <Route path="/profile" element={<ProfilePage />} />
+        <Route path="/settings" element={<SettingsPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Shell>

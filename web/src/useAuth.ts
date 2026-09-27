@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react'
-import type { User } from './api'
+import type { TokenResponse, User } from './api'
 
 export interface AuthState {
   user: User | null
@@ -8,6 +8,7 @@ export interface AuthState {
   register: (name: string, email: string, password: string) => Promise<void>
   logout: () => void
   markProfileComplete: () => void
+  acceptSession: (res: TokenResponse) => void
 }
 
 export const AuthContext = createContext<AuthState | null>(null)

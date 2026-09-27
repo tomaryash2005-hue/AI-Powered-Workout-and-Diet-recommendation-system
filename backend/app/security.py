@@ -21,10 +21,16 @@ def verify_password(password: str, hashed: str) -> bool:
     return bcrypt.checkpw(password.encode(), hashed.encode())
 
 
-def create_access_token(user_id: int) -> str:
+def create_access_token(user: User) -> str:
     expires = datetime.now(timezone.utc) + timedelta(minutes=settings.access_token_expire_minutes)
-    payload = {"sub": str(user_id), "exp": expires}
+    payload = {"sub": str(user.id), "ver": user.token_version or 0, "exp": expires}
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
+
+
+def set_password(user: User, password: str) -> None:
+    """Change a user's password and sign out every existing session."""
+    user.hashed_password = hash_password(password)
+    user.token_version = (user.token_version or 0) + 1
 
 
 def get_current_user(
@@ -41,10 +47,11 @@ def get_current_user(
     try:
         payload = jwt.decode(creds.credentials, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
         user_id = int(payload["sub"])
-    except (jwt.PyJWTError, KeyError, ValueError):
+        version = int(payload.get("ver", 0))
+    except (jwt.PyJWTError, KeyError, ValueError, TypeError):
         raise unauthorized
     user = db.get(User, user_id)
-    if user is None:
+    if user is None or version != user.token_version:
         raise unauthorized
     return user
 

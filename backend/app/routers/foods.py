@@ -6,6 +6,8 @@ from app.models import User
 from app.schemas import FoodOut, MealType, OptionOut, OptionsOut
 from app.security import get_current_user
 from app.services import usda
+from app.services.email import email_enabled
+from app.services.push import public_key
 
 router = APIRouter(prefix="/api/foods", tags=["foods"])
 
@@ -39,6 +41,8 @@ def list_options() -> OptionsOut:
         diet_types=_options(DIET_TYPES),
         equipment=_options(EQUIPMENT),
         usda_search=usda.enabled(),
+        password_reset=email_enabled(),
+        push_public_key=public_key(),
     )
 
 
