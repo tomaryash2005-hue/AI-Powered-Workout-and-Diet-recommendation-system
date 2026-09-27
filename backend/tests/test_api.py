@@ -102,3 +102,108 @@ def test_cannot_delete_other_users_meal(profiled_client: TestClient) -> None:
     ).json()["access_token"]
     res = profiled_client.delete(f"/api/meals/{meal['id']}", headers={"Authorization": f"Bearer {other}"})
     assert res.status_code == 404
+
+
+def test_options(client: TestClient) -> None:
+    data = client.get("/api/foods/options").json()
+    assert [d["key"] for d in data["diet_types"]] == [
+        "non_vegetarian", "pescatarian", "eggetarian", "vegetarian", "vegan",
+    ]
+    assert {e["key"] for e in data["equipment"]} == {"none", "dumbbells", "gym"}
+    assert data["usda_search"] is False
+
+
+def test_profile_new_fields(auth_client: TestClient) -> None:
+    body = {**PROFILE, "diet_type": "vegan", "bmi_standard": "asian", "equipment": "gym"}
+    data = auth_client.put("/api/profile", json=body).json()
+    assert data["diet_type"] == "vegan"
+    assert data["metrics"]["bmi_standard"] == "asian"
+    assert data["metrics"]["bmi_cutoffs"] == [18.5, 23.0, 27.5]
+    assert data["metrics"]["bmi_category"] == "overweight"
+    assert auth_client.put("/api/profile", json={**PROFILE, "diet_type": "keto"}).status_code == 422
+
+    diet = auth_client.get("/api/recommendations/diet", params={"day": DAY}).json()
+    assert diet["diet_type"] == "vegan"
+    workout = auth_client.get("/api/recommendations/workout", params={"day": DAY}).json()
+    assert workout["equipment"] == "gym"
+
+    foods = auth_client.get("/api/foods", params={"q": "chicken"}).json()
+    assert foods and not any(f["fits_diet"] for f in foods)
+
+
+def test_swap_flow(profiled_client: TestClient) -> None:
+    c = profiled_client
+    plan = c.get("/api/recommendations/diet", params={"day": DAY}).json()
+    assert plan["has_swaps"] is False
+    original = plan["meals"][1]["items"][0]
+
+    alts = c.get(
+        "/api/recommendations/diet/alternatives", params={"day": DAY, "meal_type": "lunch", "slot": 0}
+    ).json()
+    assert alts and original["food_id"] not in {a["food_id"] for a in alts}
+    choice = alts[-1]
+
+    res = c.put(
+        "/api/recommendations/diet/swap",
+        json={"day": DAY, "meal_type": "lunch", "slot": 0, "food_id": choice["food_id"]},
+    )
+    assert res.status_code == 200
+    item = res.json()["meals"][1]["items"][0]
+    assert item["food_id"] == choice["food_id"] and item["swapped"]
+    assert c.get("/api/recommendations/diet", params={"day": DAY}).json()["has_swaps"] is True
+    other_day = c.get("/api/recommendations/diet", params={"day": "2026-09-28"}).json()
+    assert other_day["has_swaps"] is False
+
+    # Paneer conflicts with the dairy allergy, and a vegetable can't fill the protein slot.
+    for food_id in ("paneer", "broccoli"):
+        bad = c.put(
+            "/api/recommendations/diet/swap",
+            json={"day": DAY, "meal_type": "lunch", "slot": 0, "food_id": food_id},
+        )
+        assert bad.status_code == 422
+    missing = c.get(
+        "/api/recommendations/diet/alternatives", params={"day": DAY, "meal_type": "snack", "slot": 2}
+    )
+    assert missing.status_code == 404
+
+    reset = c.delete("/api/recommendations/diet/swaps", params={"day": DAY}).json()
+    assert reset["has_swaps"] is False
+    assert reset["meals"][1]["items"][0]["food_id"] == original["food_id"]
+
+
+def test_weight_tracking_updates_profile(auth_client: TestClient) -> None:
+    c = auth_client
+    c.put("/api/profile", json={**PROFILE, "as_of": "2026-09-01"})
+    weights = c.get("/api/weight", params={"end": DAY}).json()
+    assert [(w["date"], w["weight_kg"]) for w in weights] == [("2026-09-01", 80)]
+
+    c.put("/api/weight", json={"date": "2026-09-20", "weight_kg": 78.5})
+    c.put("/api/weight", json={"date": "2026-09-10", "weight_kg": 79.2})
+    assert c.get("/api/profile").json()["weight_kg"] == 78.5
+
+    updated = c.put("/api/weight", json={"date": "2026-09-20", "weight_kg": 78.0}).json()
+    weights = c.get("/api/weight", params={"end": DAY}).json()
+    assert [w["weight_kg"] for w in weights] == [80, 79.2, 78.0]
+
+    assert c.delete(f"/api/weight/{updated['id']}").status_code == 204
+    assert c.get("/api/profile").json()["weight_kg"] == 79.2
+
+    # Saving the profile without changing weight doesn't add a weigh-in.
+    c.put("/api/profile", json={**PROFILE, "weight_kg": 79.2, "goal": "gain", "as_of": DAY})
+    assert len(c.get("/api/weight", params={"end": DAY}).json()) == 2
+    assert c.put("/api/weight", json={"date": DAY, "weight_kg": 10}).status_code == 422
+
+
+def test_calorie_history(profiled_client: TestClient) -> None:
+    c = profiled_client
+    c.post("/api/meals", json={"date": "2026-09-25", "meal_type": "lunch", "food_id": "tofu", "servings": 2})
+    c.post("/api/meals", json={"date": DAY, "meal_type": "snack", "name": "Chai", "calories": 90})
+    c.post("/api/meals", json={"date": DAY, "meal_type": "lunch", "name": "Thali", "calories": 700, "protein_g": 20})
+    data = c.get("/api/meals/history", params={"end": DAY, "days": 7}).json()
+    assert len(data["days"]) == 7
+    assert data["days"][0]["date"] == "2026-09-21"
+    by_date = {d["date"]: d for d in data["days"]}
+    assert by_date["2026-09-25"]["calories"] == 288
+    assert by_date[DAY]["calories"] == 790 and by_date[DAY]["protein_g"] == 20
+    assert by_date["2026-09-26"]["calories"] == 0
+    assert data["target_calories"] > 0

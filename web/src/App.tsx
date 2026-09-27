@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Navigate, NavLink, Route, Routes } from 'react-router-dom'
 import { useAuth } from './useAuth'
 import {
+  ChartIcon,
   DumbbellIcon,
   HomeIcon,
   JournalIcon,
@@ -15,6 +16,7 @@ import Dashboard from './pages/Dashboard'
 import DietPage from './pages/DietPage'
 import MealsPage from './pages/MealsPage'
 import ProfilePage from './pages/ProfilePage'
+import ProgressPage from './pages/ProgressPage'
 import WorkoutPage from './pages/WorkoutPage'
 
 const NAV = [
@@ -22,6 +24,7 @@ const NAV = [
   { to: '/diet', label: 'Diet', icon: <SaladIcon /> },
   { to: '/workout', label: 'Workout', icon: <DumbbellIcon /> },
   { to: '/meals', label: 'Food log', icon: <JournalIcon /> },
+  { to: '/progress', label: 'Progress', icon: <ChartIcon /> },
   { to: '/profile', label: 'Profile', icon: <UserIcon /> },
 ]
 
@@ -82,6 +85,7 @@ export default function App() {
         <Route path="/diet" element={<DietPage />} />
         <Route path="/workout" element={<WorkoutPage />} />
         <Route path="/meals" element={<MealsPage />} />
+        <Route path="/progress" element={<ProgressPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

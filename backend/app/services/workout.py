@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from datetime import date
 
-from app.data.exercises import EXERCISES, Exercise
+from app.data.exercises import EQUIPMENT_LEVELS, EXERCISES, Exercise
 from app.services.health import BodyProfile, HealthMetrics
 
 WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
@@ -67,14 +67,25 @@ class WorkoutPlan:
     goal: str
     level: str
     low_impact: bool
+    equipment: str
     days_per_week: int
     week: list[WorkoutDay]
     notes: list[str]
 
 
-def _strength_day(
-    day: str, focus: str, pool: dict[str, list[Exercise]], seed: int, goal: str, beginner: bool
-) -> WorkoutDay:
+Pools = dict[str, list[list[Exercise]]]
+
+
+def _choose(levels: list[list[Exercise]], used: set[str], index: int) -> Exercise:
+    """Pick from the most equipment-specific level that still has unused exercises."""
+    for pool in levels:
+        remaining = [e for e in pool if e.id not in used]
+        if remaining:
+            return remaining[index % len(remaining)]
+    raise ValueError("No exercises available")
+
+
+def _strength_day(day: str, focus: str, pools: Pools, seed: int, goal: str, beginner: bool) -> WorkoutDay:
     sets, reps = SETS_REPS[goal]
     if beginner:
         sets = max(2, sets - 1)
@@ -84,8 +95,7 @@ def _strength_day(
     used: set[str] = set()
     exercises: list[PlannedExercise] = []
     for i, group in enumerate(SESSION_GROUPS[focus]):
-        candidates = [e for e in pool[group] if e.id not in used]
-        ex = candidates[(seed + i) % len(candidates)]
+        ex = _choose(pools[group], used, seed + i)
         used.add(ex.id)
         exercises.append(PlannedExercise(ex.name, sets, hold if ex.timed else reps, rest, ex.tip))
 
@@ -105,10 +115,15 @@ def _cardio_day(day: str, pool: list[Exercise], seed: int, goal: str, beginner: 
 def build_workout_plan(profile: BodyProfile, metrics: HealthMetrics, day: date) -> WorkoutPlan:
     goal = metrics.effective_goal
     beginner = profile.activity_level in ("sedentary", "light")
-    low_impact = metrics.bmi >= 30 or profile.age >= 60
+    low_impact = metrics.bmi_category == "obese" or profile.age >= 60
 
+    levels = EQUIPMENT_LEVELS[profile.equipment]
     exercises = [e for e in EXERCISES if not (low_impact and e.high_impact)]
-    pool = {g: [e for e in exercises if e.group == g] for g in ("upper", "lower", "core", "cardio")}
+    pools: Pools = {
+        g: [[e for e in exercises if e.group == g and e.equipment == level] for level in levels]
+        for g in ("upper", "lower", "core")
+    }
+    cardio = [e for level in levels for e in exercises if e.group == "cardio" and e.equipment == level]
 
     days_per_week = DAYS_BY_ACTIVITY[profile.activity_level]
     sessions = dict(zip(TRAINING_DAYS[days_per_week], SPLITS[goal][days_per_week]))
@@ -124,9 +139,9 @@ def build_workout_plan(profile: BodyProfile, metrics: HealthMetrics, day: date) 
                                 "Keep it gentle — recovery is when you get stronger."),
             ]))
         elif focus == "cardio":
-            week.append(_cardio_day(weekday, pool["cardio"], seed, goal, beginner))
+            week.append(_cardio_day(weekday, cardio, seed, goal, beginner))
         else:
-            week.append(_strength_day(weekday, focus, pool, seed, goal, beginner))
+            week.append(_strength_day(weekday, focus, pools, seed, goal, beginner))
 
     notes = [
         "Warm up for 5 minutes (light cardio + dynamic stretches) before each session.",
@@ -138,6 +153,10 @@ def build_workout_plan(profile: BodyProfile, metrics: HealthMetrics, day: date) 
             "Your plan uses low-impact exercises only to protect your joints. "
             "Jumping movements are left out."
         )
+    if profile.equipment != "none":
+        notes.append(
+            "Choose a weight where the last 2 reps of each set are hard but your form stays clean."
+        )
     if beginner:
         notes.append("You're starting at a beginner volume — increase sets after 3–4 consistent weeks.")
 
@@ -145,6 +164,7 @@ def build_workout_plan(profile: BodyProfile, metrics: HealthMetrics, day: date) 
         goal=goal,
         level="beginner" if beginner else "intermediate",
         low_impact=low_impact,
+        equipment=profile.equipment,
         days_per_week=days_per_week,
         week=week,
         notes=notes,

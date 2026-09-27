@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.database import Base, engine
-from app.routers import auth, foods, meals, profile, recommendations
+from app.routers import auth, foods, meals, profile, recommendations, weight
 
 
 @asynccontextmanager
@@ -24,7 +24,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-for r in (auth.router, profile.router, recommendations.router, foods.router, meals.router):
+for r in (auth.router, profile.router, recommendations.router, foods.router, meals.router, weight.router):
     app.include_router(r)
 
 

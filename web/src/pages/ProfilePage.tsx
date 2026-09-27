@@ -4,14 +4,17 @@ import {
   api,
   ApiError,
   type ActivityLevel,
-  type Allergen,
+  type BmiStandard,
+  type DietType,
+  type Equipment,
   type Goal,
+  type Options,
   type ProfileInput,
   type Sex,
 } from '../api'
-import { useAuth } from '../useAuth'
 import { BmiScale, BmiTag } from '../components/Progress'
-import { ACTIVITY_LABELS, bmiFrom, GOAL_LABELS } from '../utils'
+import { useAuth } from '../useAuth'
+import { ACTIVITY_LABELS, BMI_CUTOFFS, bmiCategory, bmiFrom, GOAL_LABELS, today } from '../utils'
 
 interface FormState {
   age: string
@@ -21,6 +24,9 @@ interface FormState {
   activity_level: ActivityLevel
   goal: Goal
   allergies: string[]
+  diet_type: DietType
+  bmi_standard: BmiStandard
+  equipment: Equipment
 }
 
 const EMPTY: FormState = {
@@ -31,6 +37,17 @@ const EMPTY: FormState = {
   activity_level: 'light',
   goal: 'maintain',
   allergies: [],
+  diet_type: 'vegetarian',
+  bmi_standard: 'who',
+  equipment: 'none',
+}
+
+const DIET_HINTS: Record<DietType, string> = {
+  non_vegetarian: 'Everything, including chicken, meat, fish and eggs',
+  pescatarian: 'Fish and seafood, eggs and dairy — no meat',
+  eggetarian: 'Vegetarian food plus eggs',
+  vegetarian: 'No meat, fish or eggs — dairy is fine',
+  vegan: 'Only plant foods — no dairy, eggs, meat or fish',
 }
 
 export default function ProfilePage() {
@@ -38,14 +55,14 @@ export default function ProfilePage() {
   const navigate = useNavigate()
   const onboarding = !user?.has_profile
   const [form, setForm] = useState<FormState>(EMPTY)
-  const [allergens, setAllergens] = useState<Allergen[]>([])
+  const [options, setOptions] = useState<Options | null>(null)
   const [loaded, setLoaded] = useState(onboarding)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
-    api.allergens().then(setAllergens).catch(() => setAllergens([]))
+    api.options().then(setOptions).catch((e: ApiError) => setError(e.message))
     if (onboarding) return
     api
       .getProfile()
@@ -58,6 +75,9 @@ export default function ProfilePage() {
           activity_level: p.activity_level,
           goal: p.goal,
           allergies: p.allergies,
+          diet_type: p.diet_type,
+          bmi_standard: p.bmi_standard,
+          equipment: p.equipment,
         }),
       )
       .catch((e: ApiError) => setError(e.message))
@@ -76,6 +96,7 @@ export default function ProfilePage() {
     )
 
   const bmi = bmiFrom(Number(form.height_cm), Number(form.weight_kg))
+  const cutoffs = BMI_CUTOFFS[form.bmi_standard]
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
@@ -88,7 +109,7 @@ export default function ProfilePage() {
       weight_kg: Number(form.weight_kg),
     }
     try {
-      await api.saveProfile(payload)
+      await api.saveProfile(payload, today())
       if (onboarding) {
         markProfileComplete()
         navigate('/')
@@ -173,24 +194,79 @@ export default function ProfilePage() {
               </label>
             </div>
 
-            <div className="card" style={{ background: 'var(--surface-2)', boxShadow: 'none' }}>
-              <div className="spread">
-                <span className="stat-label">Body Mass Index (auto-calculated)</span>
-                {bmi !== null && <BmiTag bmi={bmi} />}
+            <div className="card inset stack" style={{ gap: 12 }}>
+              <div>
+                <div className="spread">
+                  <span className="stat-label">Body Mass Index (auto-calculated)</span>
+                  {bmi !== null && <BmiTag category={bmiCategory(bmi, cutoffs)} />}
+                </div>
+                <div className="stat-value">{bmi ?? '—'}</div>
+                {bmi !== null ? (
+                  <BmiScale bmi={bmi} cutoffs={cutoffs} />
+                ) : (
+                  <p className="small muted">Enter your height and weight to see your BMI.</p>
+                )}
               </div>
-              <div className="stat-value">{bmi ?? '—'}</div>
-              {bmi !== null ? (
-                <BmiScale bmi={bmi} />
-              ) : (
-                <p className="small muted">Enter your height and weight to see your BMI.</p>
-              )}
+              <div className="field">
+                <span>BMI ranges</span>
+                <div className="segmented" role="radiogroup" aria-label="BMI ranges">
+                  <label className="chip">
+                    <input
+                      type="radio"
+                      name="bmi_standard"
+                      checked={form.bmi_standard === 'who'}
+                      onChange={() => set('bmi_standard', 'who')}
+                    />
+                    International (WHO)
+                  </label>
+                  <label className="chip">
+                    <input
+                      type="radio"
+                      name="bmi_standard"
+                      checked={form.bmi_standard === 'asian'}
+                      onChange={() => set('bmi_standard', 'asian')}
+                    />
+                    Asian
+                  </label>
+                </div>
+                <small className="muted">
+                  Asian ranges (overweight from 23, obese from 27.5) are recommended for people of South Asian,
+                  East Asian and Southeast Asian descent, who face health risks at a lower BMI.
+                </small>
+              </div>
+            </div>
+          </section>
+
+          <section className="card stack">
+            <div>
+              <h2>Diet type</h2>
+              <p className="small muted">Your meal plans will only include foods that match.</p>
+            </div>
+            <div className="choice-list" role="radiogroup" aria-label="Diet type">
+              {options?.diet_types.map((d) => {
+                const key = d.key as DietType
+                return (
+                  <label className="choice" key={key}>
+                    <input
+                      type="radio"
+                      name="diet_type"
+                      checked={form.diet_type === key}
+                      onChange={() => set('diet_type', key)}
+                    />
+                    <span>
+                      <strong>{d.label.split(' (')[0]}</strong>
+                      <span className="small muted">{DIET_HINTS[key]}</span>
+                    </span>
+                  </label>
+                )
+              })}
             </div>
           </section>
         </div>
 
         <div className="stack">
           <section className="card stack">
-            <h2>Goal & activity</h2>
+            <h2>Goal & training</h2>
             <label className="field">
               <span>Goal</span>
               <select className="input" value={form.goal} onChange={(e) => set('goal', e.target.value as Goal)}>
@@ -215,6 +291,20 @@ export default function ProfilePage() {
                 ))}
               </select>
             </label>
+            <label className="field">
+              <span>Workout equipment</span>
+              <select
+                className="input"
+                value={form.equipment}
+                onChange={(e) => set('equipment', e.target.value as Equipment)}
+              >
+                {options?.equipment.map((o) => (
+                  <option key={o.key} value={o.key}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </label>
           </section>
 
           <section className="card stack">
@@ -223,7 +313,7 @@ export default function ProfilePage() {
               <p className="small muted">Foods containing these will never appear in your meal plan.</p>
             </div>
             <div className="segmented" role="group" aria-label="Allergies">
-              {allergens.map((a) => (
+              {options?.allergens.map((a) => (
                 <label className="chip" key={a.key}>
                   <input
                     type="checkbox"
